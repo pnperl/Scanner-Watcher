@@ -1,29 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Activity, Bell, Scan, LayoutDashboard, Settings, MonitorDot } from "lucide-react";
 import { useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
-
-const themeOptions = [
-  { value: "theme-bloomberg", label: "Bloomberg" },
-  { value: "theme-emerald", label: "Emerald" },
-  { value: "theme-amber", label: "Amber" },
-  { value: "theme-cobalt", label: "Cobalt" },
-] as const;
-
-type Theme = typeof themeOptions[number]["value"];
-
-function applyTheme(theme: Theme) {
-  const root = document.documentElement;
-  root.classList.remove(...themeOptions.map((o) => o.value));
-  root.classList.add(theme);
-}
+import { useTheme } from "@/lib/theme-context";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem("chartink-theme") as Theme | null;
-    return saved && themeOptions.some((o) => o.value === saved) ? saved : "theme-bloomberg";
-  });
+  const { themeLabel } = useTheme();
 
   const { data: health } = useHealthCheck({
     query: {
@@ -33,16 +15,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
   });
 
   const isLive = health?.status === "ok";
-
-  useEffect(() => {
-    applyTheme(theme);
-    localStorage.setItem("chartink-theme", theme);
-  }, [theme]);
-
-  const currentThemeLabel = useMemo(
-    () => themeOptions.find((o) => o.value === theme)?.label ?? "Bloomberg",
-    [theme],
-  );
 
   const navItem = (href: string, active: boolean, icon: React.ReactNode, label: string) => (
     <Link
@@ -98,7 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             SYSTEM HEALTH: {isLive ? "OPTIMAL" : "DEGRADED"}
           </div>
           <div className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-wider">
-            Mode: {currentThemeLabel}
+            Mode: {themeLabel}
           </div>
         </div>
       </aside>

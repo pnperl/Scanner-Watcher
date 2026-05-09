@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -15,28 +15,17 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, CheckCircle2, XCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useTheme, themeOptions } from "@/lib/theme-context";
 
 const formSchema = z.object({
   botToken: z.string().min(1, "Bot token is required"),
   chatId: z.string().min(1, "Chat ID is required"),
 });
 
-const themeOptions = [
-  { value: "theme-bloomberg", label: "Bloomberg" },
-  { value: "theme-emerald", label: "Emerald" },
-  { value: "theme-amber", label: "Amber" },
-  { value: "theme-cobalt", label: "Cobalt" },
-] as const;
-
-type Theme = typeof themeOptions[number]["value"];
-
 export default function ConfigPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem("chartink-theme") as Theme | null;
-    return saved && themeOptions.some((o) => o.value === saved) ? saved : "theme-bloomberg";
-  });
+  const { theme, setTheme } = useTheme();
 
   const { data: config, isLoading } = useGetTelegramConfig({
     query: {
@@ -58,13 +47,6 @@ export default function ConfigPage() {
       form.reset({ botToken: "", chatId: "" });
     }
   }, [config, form]);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    root.classList.remove(...themeOptions.map((o) => o.value));
-    root.classList.add(theme);
-    localStorage.setItem("chartink-theme", theme);
-  }, [theme]);
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     updateConfig.mutate(
@@ -104,11 +86,12 @@ export default function ConfigPage() {
         </p>
       </div>
 
+      {/* UI Mode */}
       <div className="bg-[hsl(var(--terminal-panel))] border border-[color:var(--terminal-border-soft)] p-5">
         <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-3">
           UI Mode
         </div>
-        <Select value={theme} onValueChange={(value) => setTheme(value as Theme)}>
+        <Select value={theme} onValueChange={(value) => setTheme(value as typeof theme)}>
           <SelectTrigger className="rounded-none bg-background/60 border-[color:var(--terminal-border-soft)] font-mono text-xs">
             <SelectValue />
           </SelectTrigger>

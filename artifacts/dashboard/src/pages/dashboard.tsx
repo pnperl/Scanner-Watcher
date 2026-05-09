@@ -37,7 +37,8 @@ export default function Dashboard() {
     return () => window.clearInterval(timer);
   }, []);
 
-  // Find the soonest next-scan across all active scanners using lastScannedAt + intervalMinutes
+  // Find the soonest next-scan across all active scanners.
+  // For scanners that have never been scanned, treat them as due immediately (nextAt = now - epsilon).
   const nextScanInfo = useMemo(() => {
     if (!scanners) return null;
     const active = scanners.filter((s) => s.isActive);
@@ -45,8 +46,11 @@ export default function Dashboard() {
 
     let soonest: { name: string; nextAt: number } | null = null;
     for (const s of active) {
-      if (!s.lastScannedAt) continue;
-      const nextAt = new Date(s.lastScannedAt).getTime() + s.intervalMinutes * 60 * 1000;
+      // If never scanned, scanner fires very soon (first run on poller start)
+      const baseTime = s.lastScannedAt
+        ? new Date(s.lastScannedAt).getTime()
+        : Date.now() - s.intervalMinutes * 60 * 1000;
+      const nextAt = baseTime + s.intervalMinutes * 60 * 1000;
       if (!soonest || nextAt < soonest.nextAt) {
         soonest = { name: s.name, nextAt };
       }
@@ -64,7 +68,7 @@ export default function Dashboard() {
   }, [now, nextScanInfo]);
 
   const nextScanLabel = useMemo(() => {
-    if (!nextScanInfo) return "Awaiting first scan";
+    if (!nextScanInfo) return "No active scanners";
     const remaining = Math.max(0, nextScanInfo.nextAt - now);
     if (remaining === 0) return "Scanning now...";
     return nextScanInfo.name;

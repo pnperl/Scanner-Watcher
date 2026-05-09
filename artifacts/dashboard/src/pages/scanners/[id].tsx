@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import {
   useGetScanner, getGetScannerQueryKey,
   useUpdateScanner, useDeleteScanner, useTriggerScan,
+  useListAlerts, getListAlertsQueryKey,
   getListScannersQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -15,6 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Play, Trash2 } from "lucide-react";
 import { format } from "date-fns";
@@ -36,6 +38,15 @@ export default function ScannerDetail() {
 
   const { data: scanner, isLoading } = useGetScanner(id, {
     query: { enabled: !!id, queryKey: getGetScannerQueryKey(id) },
+  });
+
+  const alertFilter = { scannerId: id };
+  const { data: alerts, isLoading: alertsLoading } = useListAlerts(alertFilter, {
+    query: {
+      enabled: !!id,
+      queryKey: getListAlertsQueryKey(alertFilter),
+      refetchInterval: 30000,
+    },
   });
 
   const updateScanner = useUpdateScanner();
@@ -103,6 +114,7 @@ export default function ScannerDetail() {
             description: `Found ${data.stocksFound} stocks, ${data.newAlerts} new alerts triggered.`,
           });
           queryClient.invalidateQueries({ queryKey: getGetScannerQueryKey(id) });
+          queryClient.invalidateQueries({ queryKey: getListAlertsQueryKey(alertFilter) });
         },
       },
     );
@@ -123,6 +135,8 @@ export default function ScannerDetail() {
       </div>
     );
   }
+
+  const recentAlerts = alerts?.slice(0, 20) ?? [];
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -296,6 +310,68 @@ export default function ScannerDetail() {
             </div>
           </form>
         </Form>
+      </div>
+
+      {/* Recent alerts for this scanner */}
+      <div className="bg-[hsl(var(--terminal-panel))] border border-[color:var(--terminal-border-soft)]">
+        <div className="px-5 pt-4 pb-3 border-b border-[color:var(--terminal-border-soft)] flex items-center justify-between">
+          <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+            Recent Signals
+          </span>
+          {alerts && (
+            <span className="text-[10px] font-mono text-muted-foreground/60 tabular-nums">
+              {alerts.length} total
+            </span>
+          )}
+        </div>
+
+        {alertsLoading ? (
+          <div className="p-4 space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-8 w-full rounded-none" />
+            ))}
+          </div>
+        ) : recentAlerts.length === 0 ? (
+          <div className="px-5 py-10 text-center text-[11px] font-mono text-muted-foreground uppercase tracking-wider">
+            No signals yet — run a scan or wait for the next poll.
+          </div>
+        ) : (
+          <div className="divide-y divide-[color:var(--terminal-border-soft)]">
+            {recentAlerts.map((alert) => (
+              <div
+                key={alert.id}
+                className="flex items-center justify-between px-5 py-2.5 hover:bg-[hsl(var(--terminal-panel-strong))] transition-colors"
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  <span className="font-bold font-mono text-sm text-foreground shrink-0">{alert.symbol}</span>
+                  <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                    {format(new Date(alert.triggeredAt), "MMM d, HH:mm:ss")}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="font-mono text-sm text-green-400 font-semibold tabular-nums">
+                    {alert.price != null ? `₹${alert.price.toFixed(2)}` : "—"}
+                  </span>
+                  {alert.telegramSent ? (
+                    <Badge
+                      variant="outline"
+                      className="rounded-none text-[9px] font-mono px-1.5 py-0 bg-green-500/10 text-green-400 border-green-500/30"
+                    >
+                      SENT
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="rounded-none text-[9px] font-mono px-1.5 py-0 text-muted-foreground border-muted-foreground/30"
+                    >
+                      FAILED
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

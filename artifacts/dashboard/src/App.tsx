@@ -10,6 +10,7 @@ import NewScanner from "@/pages/scanners/new";
 import ScannerDetail from "@/pages/scanners/[id]";
 import Alerts from "@/pages/alerts";
 import ConfigPage from "@/pages/config";
+import { ThemeProvider } from "@/lib/theme-context";
 
 const queryClient = new QueryClient();
 
@@ -33,10 +34,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
+        <ThemeProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+        </ThemeProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
