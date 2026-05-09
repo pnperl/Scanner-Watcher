@@ -14,15 +14,29 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, CheckCircle2, XCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const formSchema = z.object({
   botToken: z.string().min(1, "Bot token is required"),
   chatId: z.string().min(1, "Chat ID is required"),
 });
 
+const themeOptions = [
+  { value: "theme-bloomberg", label: "Bloomberg" },
+  { value: "theme-emerald", label: "Emerald" },
+  { value: "theme-amber", label: "Amber" },
+  { value: "theme-cobalt", label: "Cobalt" },
+] as const;
+
+type Theme = typeof themeOptions[number]["value"];
+
 export default function ConfigPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [theme, setTheme] = useState<Theme>(() => {
+    const saved = localStorage.getItem("chartink-theme") as Theme | null;
+    return saved && themeOptions.some((o) => o.value === saved) ? saved : "theme-bloomberg";
+  });
 
   const { data: config, isLoading } = useGetTelegramConfig({
     query: {
@@ -44,6 +58,13 @@ export default function ConfigPage() {
       form.reset({ botToken: "", chatId: "" });
     }
   }, [config, form]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove(...themeOptions.map((o) => o.value));
+    root.classList.add(theme);
+    localStorage.setItem("chartink-theme", theme);
+  }, [theme]);
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     updateConfig.mutate(
@@ -81,6 +102,24 @@ export default function ConfigPage() {
         <p className="text-muted-foreground text-xs font-mono uppercase tracking-wider mt-0.5">
           Manage Telegram delivery settings
         </p>
+      </div>
+
+      <div className="bg-[hsl(var(--terminal-panel))] border border-[color:var(--terminal-border-soft)] p-5">
+        <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-3">
+          UI Mode
+        </div>
+        <Select value={theme} onValueChange={(value) => setTheme(value as Theme)}>
+          <SelectTrigger className="rounded-none bg-background/60 border-[color:var(--terminal-border-soft)] font-mono text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {themeOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value} className="font-mono text-xs">
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Current status panel */}

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, Bell, Scan, LayoutDashboard, Settings, MonitorDot, Palette } from "lucide-react";
+import { Activity, Bell, Scan, LayoutDashboard, Settings, MonitorDot } from "lucide-react";
 import { useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const themeOptions = [
   { value: "theme-bloomberg", label: "Bloomberg" },
@@ -82,26 +81,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isLive ? "bg-green-500" : "bg-red-500"}`} />
             </span>
           </div>
-        </div>
-
-        {/* Theme switcher */}
-        <div className="px-4 py-3 border-b border-[color:var(--terminal-border-soft)] space-y-2">
-          <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-            <Palette className="h-3 w-3" />
-            UI Mode
-          </div>
-          <Select value={theme} onValueChange={(v) => setTheme(v as Theme)}>
-            <SelectTrigger className="h-8 text-xs bg-background/40 border-[color:var(--terminal-border-soft)] rounded-none">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {themeOptions.map((o) => (
-                <SelectItem key={o.value} value={o.value} className="text-xs">
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Nav */}
