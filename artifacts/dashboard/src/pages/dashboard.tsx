@@ -1,16 +1,40 @@
+import { useEffect, useMemo, useState } from "react";
 import { useGetStatsSummary, getGetStatsSummaryQueryKey, useGetScannerActivity, getGetScannerActivityQueryKey, useGetRecentAlerts, getGetRecentAlertsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
+import { Badge } from "@/components/ui/badge";
 
 export default function Dashboard() {
+  const [now, setNow] = useState(() => Date.now());
   const { data: stats, isLoading: statsLoading } = useGetStatsSummary({
     query: {
       queryKey: getGetStatsSummaryQueryKey(),
       refetchInterval: 30000,
     }
   });
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const nextScanCountdown = useMemo(() => {
+    if (!stats?.lastScanAt) return "—";
+    const next = new Date(stats.lastScanAt).getTime() + 5 * 60 * 1000;
+    const remaining = Math.max(0, next - now);
+    const totalSeconds = Math.floor(remaining / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }, [now, stats?.lastScanAt]);
+
+  const nextScanInSeconds = useMemo(() => {
+    if (!stats?.lastScanAt) return null;
+    const next = new Date(stats.lastScanAt).getTime() + 5 * 60 * 1000;
+    return Math.max(0, Math.floor((next - now) / 1000));
+  }, [now, stats?.lastScanAt]);
 
   const { data: activity, isLoading: activityLoading } = useGetScannerActivity({
     query: {
@@ -28,15 +52,25 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[color:var(--terminal-border-soft)] pb-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight uppercase">Dashboard</h1>
+            <Badge variant="outline" className="rounded-none border-[color:var(--terminal-border)] text-primary">
+              LIVE
+            </Badge>
+          </div>
           <p className="text-muted-foreground text-sm font-mono mt-1">Live market overview</p>
+        </div>
+        <div className="text-right font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          <div>Next scan</div>
+          <div className="text-2xl text-primary font-bold tracking-tight">{nextScanCountdown}</div>
+          <div>{nextScanInSeconds === null ? "Awaiting first scan" : `${nextScanInSeconds} seconds`}</div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-card">
+        <Card className="bg-[hsl(var(--terminal-panel))] border-[color:var(--terminal-border-soft)] rounded-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs uppercase text-muted-foreground font-mono">Active Scanners</CardTitle>
           </CardHeader>
@@ -47,7 +81,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
         
-        <Card className="bg-card">
+        <Card className="bg-[hsl(var(--terminal-panel))] border-[color:var(--terminal-border-soft)] rounded-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs uppercase text-muted-foreground font-mono">Alerts Today</CardTitle>
           </CardHeader>
@@ -58,7 +92,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card">
+        <Card className="bg-[hsl(var(--terminal-panel))] border-[color:var(--terminal-border-soft)] rounded-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs uppercase text-muted-foreground font-mono">Total Alerts</CardTitle>
           </CardHeader>
@@ -69,7 +103,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card">
+        <Card className="bg-[hsl(var(--terminal-panel))] border-[color:var(--terminal-border-soft)] rounded-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs uppercase text-muted-foreground font-mono">Last Scan</CardTitle>
           </CardHeader>
@@ -82,7 +116,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 bg-card">
+        <Card className="lg:col-span-2 bg-[hsl(var(--terminal-panel))] border-[color:var(--terminal-border-soft)] rounded-none">
           <CardHeader>
             <CardTitle className="text-sm uppercase font-mono tracking-wider">Scanner Activity (Alerts)</CardTitle>
           </CardHeader>
@@ -100,7 +134,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card flex flex-col">
+        <Card className="bg-[hsl(var(--terminal-panel))] border-[color:var(--terminal-border-soft)] rounded-none flex flex-col">
           <CardHeader>
             <CardTitle className="text-sm uppercase font-mono tracking-wider">Recent Signals</CardTitle>
           </CardHeader>

@@ -76,6 +76,13 @@
 
   --background: 222 47% 7%;
   --foreground: 210 40% 98%;
+  --terminal-background: 224 55% 5%;
+  --terminal-panel: 224 45% 8%;
+  --terminal-panel-strong: 224 45% 11%;
+  --terminal-border: 186 100% 35%;
+  --terminal-border-soft: 215 25% 18%;
+  --terminal-accent: 186 100% 46%;
+  --terminal-accent-2: 42 100% 52%;
 
   --border: 217 32% 17%;
 
@@ -154,6 +161,81 @@
 .dark {
   --background: 222 47% 7%;
   --foreground: 210 40% 98%;
+  --terminal-background: 224 55% 5%;
+  --terminal-panel: 224 45% 8%;
+  --terminal-panel-strong: 224 45% 11%;
+  --terminal-border: 186 100% 35%;
+  --terminal-border-soft: 215 25% 18%;
+  --terminal-accent: 186 100% 46%;
+  --terminal-accent-2: 42 100% 52%;
+}
+
+.theme-bloomberg {
+  --background: 224 55% 5%;
+  --foreground: 210 40% 98%;
+  --card: 224 45% 8%;
+  --card-foreground: 210 40% 98%;
+  --popover: 224 45% 8%;
+  --popover-foreground: 210 40% 98%;
+  --secondary: 224 35% 12%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 224 35% 12%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 186 100% 12%;
+  --accent-foreground: 210 40% 98%;
+  --primary: 186 100% 46%;
+  --primary-foreground: 224 55% 5%;
+}
+
+.theme-emerald {
+  --background: 152 42% 7%;
+  --foreground: 150 20% 98%;
+  --card: 152 32% 11%;
+  --card-foreground: 150 20% 98%;
+  --popover: 152 32% 11%;
+  --popover-foreground: 150 20% 98%;
+  --secondary: 152 22% 16%;
+  --secondary-foreground: 150 20% 98%;
+  --muted: 152 22% 16%;
+  --muted-foreground: 152 10% 68%;
+  --accent: 152 100% 14%;
+  --accent-foreground: 150 20% 98%;
+  --primary: 152 100% 45%;
+  --primary-foreground: 152 42% 7%;
+}
+
+.theme-amber {
+  --background: 32 35% 8%;
+  --foreground: 40 20% 98%;
+  --card: 32 28% 11%;
+  --card-foreground: 40 20% 98%;
+  --popover: 32 28% 11%;
+  --popover-foreground: 40 20% 98%;
+  --secondary: 32 20% 16%;
+  --secondary-foreground: 40 20% 98%;
+  --muted: 32 20% 16%;
+  --muted-foreground: 32 10% 68%;
+  --accent: 36 100% 14%;
+  --accent-foreground: 40 20% 98%;
+  --primary: 36 100% 52%;
+  --primary-foreground: 32 35% 8%;
+}
+
+.theme-cobalt {
+  --background: 222 55% 6%;
+  --foreground: 210 20% 98%;
+  --card: 222 40% 10%;
+  --card-foreground: 210 20% 98%;
+  --popover: 222 40% 10%;
+  --popover-foreground: 210 20% 98%;
+  --secondary: 222 28% 16%;
+  --secondary-foreground: 210 20% 98%;
+  --muted: 222 28% 16%;
+  --muted-foreground: 222 12% 68%;
+  --accent: 210 100% 14%;
+  --accent-foreground: 210 20% 98%;
+  --primary: 210 100% 52%;
+  --primary-foreground: 222 55% 6%;
 }
 
 @layer base {
