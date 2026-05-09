@@ -25,11 +25,18 @@ function randomUserAgent(): string {
 }
 
 function extractScannerIdFromUrl(url: string): string | null {
-  const match = url.match(/[?&]scan_clause=([^&]+)/);
-  if (match) return decodeURIComponent(match[1]!);
+  // ?scan_clause=<encoded clause>
+  const clauseMatch = url.match(/[?&]scan_clause=([^&]+)/);
+  if (clauseMatch) return decodeURIComponent(clauseMatch[1]!);
 
-  const idMatch = url.match(/\/(\d+)\/?$/);
-  if (idMatch) return idMatch[1]!;
+  // Numeric screener ID: /screener/12345 or /12345
+  const numericMatch = url.match(/\/(\d+)\/?(?:[?#].*)?$/);
+  if (numericMatch) return numericMatch[1]!;
+
+  // Named screener slug: https://chartink.com/screener/some-slug
+  // Use the slug itself as the scan_clause (Chartink resolves named screeners by slug)
+  const slugMatch = url.match(/\/screener\/([a-z0-9][a-z0-9-]*[a-z0-9])\/?(?:[?#].*)?$/i);
+  if (slugMatch) return slugMatch[1]!;
 
   return null;
 }
