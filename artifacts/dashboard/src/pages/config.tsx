@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useQueryClient } from "@tanstack/react-query";
-import { getTelegramConfigQueryKey, useGetTelegramConfig, useUpdateTelegramConfig, useTestTelegramConfig } from "@workspace/api-client-react";
+import { getGetTelegramConfigQueryKey, useGetTelegramConfig, useUpdateTelegramConfig, useTestTelegramConfig } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -21,7 +21,7 @@ export default function ConfigPage() {
   const queryClient = useQueryClient();
   const { data: config, isLoading } = useGetTelegramConfig({
     query: {
-      queryKey: getTelegramConfigQueryKey(),
+      queryKey: getGetTelegramConfigQueryKey(),
       refetchInterval: 30000,
     },
   });
@@ -46,7 +46,7 @@ export default function ConfigPage() {
     updateConfig.mutate({ data: values }, {
       onSuccess: () => {
         toast({ title: "Telegram config saved" });
-        queryClient.invalidateQueries({ queryKey: getTelegramConfigQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetTelegramConfigQueryKey() });
       },
       onError: () => {
         toast({ title: "Failed to save Telegram config", variant: "destructive" });
