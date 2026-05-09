@@ -241,6 +241,49 @@ paths:
                 items:
                   $ref: "#/components/schemas/ScannerActivity"
 
+  /config/telegram:
+    get:
+      operationId: getTelegramConfig
+      tags: [stats]
+      summary: Get Telegram configuration status
+      responses:
+        "200":
+          description: Telegram config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramConfig"
+    patch:
+      operationId: updateTelegramConfig
+      tags: [stats]
+      summary: Update Telegram configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramConfigInput"
+      responses:
+        "200":
+          description: Updated config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramConfig"
+
+  /config/telegram/test:
+    post:
+      operationId: testTelegramConfig
+      tags: [stats]
+      summary: Send a test Telegram notification
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramTestResult"
+
 components:
   schemas:
     HealthStatus:
@@ -370,4 +413,39 @@ components:
           type: string
         alertCount:
           type: integer
+
+    TelegramConfig:
+      type: object
+      required: [hasBotToken, hasChatId, botTokenLast4, chatIdMasked, enabled]
+      properties:
+        hasBotToken:
+          type: boolean
+        hasChatId:
+          type: boolean
+        botTokenLast4:
+          type: [string, "null"]
+        chatIdMasked:
+          type: [string, "null"]
+        enabled:
+          type: boolean
+
+    TelegramConfigInput:
+      type: object
+      required: [botToken, chatId]
+      properties:
+        botToken:
+          type: string
+          minLength: 1
+        chatId:
+          type: string
+          minLength: 1
+
+    TelegramTestResult:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
 

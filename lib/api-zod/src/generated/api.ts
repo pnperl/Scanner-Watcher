@@ -201,3 +201,39 @@ export const GetScannerActivityResponseItem = zod.object({
 export const GetScannerActivityResponse = zod.array(
   GetScannerActivityResponseItem,
 );
+
+/**
+ * @summary Get Telegram configuration status
+ */
+export const GetTelegramConfigResponse = zod.object({
+  hasBotToken: zod.boolean(),
+  hasChatId: zod.boolean(),
+  botTokenLast4: zod.string().nullable(),
+  chatIdMasked: zod.string().nullable(),
+  enabled: zod.boolean(),
+});
+
+/**
+ * @summary Update Telegram configuration
+ */
+
+export const UpdateTelegramConfigBody = zod.object({
+  botToken: zod.string().min(1),
+  chatId: zod.string().min(1),
+});
+
+export const UpdateTelegramConfigResponse = zod.object({
+  hasBotToken: zod.boolean(),
+  hasChatId: zod.boolean(),
+  botTokenLast4: zod.string().nullable(),
+  chatIdMasked: zod.string().nullable(),
+  enabled: zod.boolean(),
+});
+
+/**
+ * @summary Send a test Telegram notification
+ */
+export const TestTelegramConfigResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
+});

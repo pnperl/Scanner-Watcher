@@ -9,6 +9,7 @@ import Scanners from "@/pages/scanners/index";
 import NewScanner from "@/pages/scanners/new";
 import ScannerDetail from "@/pages/scanners/[id]";
 import Alerts from "@/pages/alerts";
+import ConfigPage from "@/pages/config";
 
 const queryClient = new QueryClient();
 
@@ -21,6 +22,7 @@ function Router() {
         <Route path="/scanners/new" component={NewScanner} />
         <Route path="/scanners/:id" component={ScannerDetail} />
         <Route path="/alerts" component={Alerts} />
+        <Route path="/config" component={ConfigPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

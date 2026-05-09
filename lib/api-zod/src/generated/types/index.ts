@@ -17,3 +17,6 @@ export * from "./scannerToggle";
 export * from "./scannerUpdate";
 export * from "./scanResult";
 export * from "./statsSummary";
+export * from "./telegramConfig";
+export * from "./telegramConfigInput";
+export * from "./telegramTestResult";

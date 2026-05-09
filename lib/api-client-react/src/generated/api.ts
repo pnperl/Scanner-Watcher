@@ -28,6 +28,9 @@ import type {
   ScannerToggle,
   ScannerUpdate,
   StatsSummary,
+  TelegramConfig,
+  TelegramConfigInput,
+  TelegramTestResult,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -1041,3 +1044,245 @@ export function useGetScannerActivity<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get Telegram configuration status
+ */
+export const getGetTelegramConfigUrl = () => {
+  return `/api/config/telegram`;
+};
+
+export const getTelegramConfig = async (
+  options?: RequestInit,
+): Promise<TelegramConfig> => {
+  return customFetch<TelegramConfig>(getGetTelegramConfigUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTelegramConfigQueryKey = () => {
+  return [`/api/config/telegram`] as const;
+};
+
+export const getGetTelegramConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTelegramConfig>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getTelegramConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTelegramConfigQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTelegramConfig>>
+  > = ({ signal }) => getTelegramConfig({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTelegramConfig>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTelegramConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTelegramConfig>>
+>;
+export type GetTelegramConfigQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get Telegram configuration status
+ */
+
+export function useGetTelegramConfig<
+  TData = Awaited<ReturnType<typeof getTelegramConfig>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getTelegramConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTelegramConfigQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update Telegram configuration
+ */
+export const getUpdateTelegramConfigUrl = () => {
+  return `/api/config/telegram`;
+};
+
+export const updateTelegramConfig = async (
+  telegramConfigInput: TelegramConfigInput,
+  options?: RequestInit,
+): Promise<TelegramConfig> => {
+  return customFetch<TelegramConfig>(getUpdateTelegramConfigUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(telegramConfigInput),
+  });
+};
+
+export const getUpdateTelegramConfigMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTelegramConfig>>,
+    TError,
+    { data: BodyType<TelegramConfigInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateTelegramConfig>>,
+  TError,
+  { data: BodyType<TelegramConfigInput> },
+  TContext
+> => {
+  const mutationKey = ["updateTelegramConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateTelegramConfig>>,
+    { data: BodyType<TelegramConfigInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateTelegramConfig(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateTelegramConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateTelegramConfig>>
+>;
+export type UpdateTelegramConfigMutationBody = BodyType<TelegramConfigInput>;
+export type UpdateTelegramConfigMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update Telegram configuration
+ */
+export const useUpdateTelegramConfig = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTelegramConfig>>,
+    TError,
+    { data: BodyType<TelegramConfigInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateTelegramConfig>>,
+  TError,
+  { data: BodyType<TelegramConfigInput> },
+  TContext
+> => {
+  return useMutation(getUpdateTelegramConfigMutationOptions(options));
+};
+
+/**
+ * @summary Send a test Telegram notification
+ */
+export const getTestTelegramConfigUrl = () => {
+  return `/api/config/telegram/test`;
+};
+
+export const testTelegramConfig = async (
+  options?: RequestInit,
+): Promise<TelegramTestResult> => {
+  return customFetch<TelegramTestResult>(getTestTelegramConfigUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getTestTelegramConfigMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof testTelegramConfig>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof testTelegramConfig>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["testTelegramConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof testTelegramConfig>>,
+    void
+  > = () => {
+    return testTelegramConfig(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TestTelegramConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof testTelegramConfig>>
+>;
+
+export type TestTelegramConfigMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send a test Telegram notification
+ */
+export const useTestTelegramConfig = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof testTelegramConfig>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof testTelegramConfig>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getTestTelegramConfigMutationOptions(options));
+};

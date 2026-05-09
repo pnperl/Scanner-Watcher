@@ -1,10 +1,25 @@
 import { logger } from "./logger";
 
-const TELEGRAM_BOT_TOKEN = process.env["TELEGRAM_BOT_TOKEN"];
-const TELEGRAM_CHAT_ID = process.env["TELEGRAM_CHAT_ID"];
+export let TELEGRAM_BOT_TOKEN = process.env["TELEGRAM_BOT_TOKEN"];
+export let TELEGRAM_CHAT_ID = process.env["TELEGRAM_CHAT_ID"];
+
+export function setTelegramConfig(botToken: string, chatId: string): void {
+  TELEGRAM_BOT_TOKEN = botToken;
+  TELEGRAM_CHAT_ID = chatId;
+}
 
 export function isTelegramEnabled(): boolean {
   return !!(TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID);
+}
+
+export function getTelegramConfig() {
+  return {
+    hasBotToken: !!TELEGRAM_BOT_TOKEN,
+    hasChatId: !!TELEGRAM_CHAT_ID,
+    botTokenLast4: TELEGRAM_BOT_TOKEN ? TELEGRAM_BOT_TOKEN.slice(-4) : null,
+    chatIdMasked: TELEGRAM_CHAT_ID ? maskChatId(TELEGRAM_CHAT_ID) : null,
+    enabled: isTelegramEnabled(),
+  };
 }
 
 export async function sendTelegramAlert(
@@ -56,6 +71,22 @@ export async function sendTelegramAlert(
   }
 }
 
+export async function sendTelegramTestNotification(): Promise<{ success: boolean; message: string }> {
+  if (!isTelegramEnabled()) {
+    return { success: false, message: "Telegram is not configured" };
+  }
+
+  const ok = await sendTelegramAlert("Telegram Test", ["TEST_SIGNAL"], { TEST_SIGNAL: null });
+  return ok
+    ? { success: true, message: "Test notification sent" }
+    : { success: false, message: "Failed to send test notification" };
+}
+
 function escapeMarkdown(text: string): string {
   return text.replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, "\\$&");
+}
+
+function maskChatId(chatId: string): string {
+  if (chatId.length <= 4) return chatId;
+  return `${chatId.slice(0, 2)}***${chatId.slice(-2)}`;
 }

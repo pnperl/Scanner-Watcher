@@ -79,6 +79,28 @@ export interface ScannerActivity {
   alertCount: number;
 }
 
+export interface TelegramConfig {
+  hasBotToken: boolean;
+  hasChatId: boolean;
+  /** @nullable */
+  botTokenLast4: string | null;
+  /** @nullable */
+  chatIdMasked: string | null;
+  enabled: boolean;
+}
+
+export interface TelegramConfigInput {
+  /** @minLength 1 */
+  botToken: string;
+  /** @minLength 1 */
+  chatId: string;
+}
+
+export interface TelegramTestResult {
+  success: boolean;
+  message: string;
+}
+
 export type ListAlertsParams = {
   scannerId?: number;
   symbol?: string;
