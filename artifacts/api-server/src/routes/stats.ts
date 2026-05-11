@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, count, desc, sql } from "drizzle-orm";
-import { db, scannersTable, alertsTable } from "@workspace/db";
+import { db, scannersTable, alertsTable, scanLogsTable } from "@workspace/db";
 import { isTelegramEnabled } from "../lib/telegram";
 
 const router: IRouter = Router();
@@ -85,6 +85,46 @@ router.get("/stats/scanner-activity", async (_req, res): Promise<void> => {
     .orderBy(desc(count(alertsTable.id)));
 
   res.json(rows);
+});
+
+router.get("/stats/scan-timeline", async (_req, res): Promise<void> => {
+  // Get all scanners
+  const scanners = await db
+    .select()
+    .from(scannersTable)
+    .orderBy(desc(scannersTable.isActive), scannersTable.name);
+
+  // Get the last 8 scan logs per scanner
+  const logs = await db
+    .select()
+    .from(scanLogsTable)
+    .orderBy(desc(scanLogsTable.scannedAt));
+
+  // Group logs by scanner id, keep last 8 per scanner
+  const logsByScanner = new Map<number, typeof logs>();
+  for (const log of logs) {
+    const existing = logsByScanner.get(log.scannerId) ?? [];
+    if (existing.length < 8) {
+      existing.push(log);
+      logsByScanner.set(log.scannerId, existing);
+    }
+  }
+
+  const timeline = scanners.map((scanner) => ({
+    scannerId: scanner.id,
+    scannerName: scanner.name,
+    isActive: scanner.isActive,
+    recentScans: (logsByScanner.get(scanner.id) ?? []).map((log) => ({
+      id: log.id,
+      scannedAt: log.scannedAt.toISOString(),
+      stocksFound: log.stocksFound,
+      newAlerts: log.newAlerts,
+      symbols: log.symbols ?? [],
+      error: log.error ?? null,
+    })),
+  }));
+
+  res.json(timeline);
 });
 
 export default router;

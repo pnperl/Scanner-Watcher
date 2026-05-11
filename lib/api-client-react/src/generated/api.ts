@@ -25,6 +25,7 @@ import type {
   Scanner,
   ScannerActivity,
   ScannerInput,
+  ScannerTimeline,
   ScannerToggle,
   ScannerUpdate,
   StatsSummary,
@@ -1037,6 +1038,81 @@ export function useGetScannerActivity<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetScannerActivityQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get per-scanner recent scan logs with stocks found
+ */
+export const getGetScanTimelineUrl = () => {
+  return `/api/stats/scan-timeline`;
+};
+
+export const getScanTimeline = async (
+  options?: RequestInit,
+): Promise<ScannerTimeline[]> => {
+  return customFetch<ScannerTimeline[]>(getGetScanTimelineUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetScanTimelineQueryKey = () => {
+  return [`/api/stats/scan-timeline`] as const;
+};
+
+export const getGetScanTimelineQueryOptions = <
+  TData = Awaited<ReturnType<typeof getScanTimeline>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getScanTimeline>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetScanTimelineQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getScanTimeline>>> = ({
+    signal,
+  }) => getScanTimeline({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getScanTimeline>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetScanTimelineQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getScanTimeline>>
+>;
+export type GetScanTimelineQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get per-scanner recent scan logs with stocks found
+ */
+
+export function useGetScanTimeline<
+  TData = Awaited<ReturnType<typeof getScanTimeline>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getScanTimeline>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetScanTimelineQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

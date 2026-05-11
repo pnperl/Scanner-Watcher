@@ -4,13 +4,15 @@ import {
   useGetScannerActivity, getGetScannerActivityQueryKey,
   useGetRecentAlerts, getGetRecentAlertsQueryKey,
   useListScanners, getListScannersQueryKey,
+  useGetScanTimeline, getGetScanTimelineQueryKey,
 } from "@workspace/api-client-react";
+import type { ScanLogEntry, ScannerTimeline } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
-import { TrendingUp, Bell, Activity, Clock } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
+import { TrendingUp, Bell, Activity, Clock, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 
 export default function Dashboard() {
   const [now, setNow] = useState(() => Date.now());
@@ -32,13 +34,15 @@ export default function Dashboard() {
     query: { queryKey: getListScannersQueryKey(), refetchInterval: 30000 },
   });
 
+  const { data: scanTimeline, isLoading: timelineLoading } = useGetScanTimeline({
+    query: { queryKey: getGetScanTimelineQueryKey(), refetchInterval: 30000 },
+  });
+
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
 
-  // Find the soonest next-scan across all active scanners.
-  // For scanners that have never been scanned, treat them as due immediately (nextAt = now - epsilon).
   const nextScanInfo = useMemo(() => {
     if (!scanners) return null;
     const active = scanners.filter((s) => s.isActive);
@@ -46,7 +50,6 @@ export default function Dashboard() {
 
     let soonest: { name: string; nextAt: number } | null = null;
     for (const s of active) {
-      // If never scanned, scanner fires very soon (first run on poller start)
       const baseTime = s.lastScannedAt
         ? new Date(s.lastScannedAt).getTime()
         : Date.now() - s.intervalMinutes * 60 * 1000;
@@ -87,7 +90,6 @@ export default function Dashboard() {
           </div>
           <p className="text-muted-foreground text-xs font-mono uppercase tracking-wider">Real-time market scanner overview</p>
         </div>
-        {/* Countdown */}
         <div className="flex flex-col items-end text-right font-mono shrink-0">
           <span className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Next Scan</span>
           <span className="text-4xl font-bold text-primary leading-none tabular-nums">{nextScanCountdown}</span>
@@ -132,6 +134,30 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* Scanner Status — per-scanner live view */}
+      <div>
+        <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-3">
+          Scanner Status — Current Stocks &amp; Scan History
+        </div>
+        {timelineLoading ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <Skeleton key={i} className="h-52 w-full rounded-none" />
+            ))}
+          </div>
+        ) : !scanTimeline || scanTimeline.length === 0 ? (
+          <div className="border border-dashed border-[color:var(--terminal-border-soft)] bg-[hsl(var(--terminal-panel))] py-10 text-center text-xs font-mono uppercase tracking-wider text-muted-foreground">
+            No scan data yet — scanners will log results here after their first run.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {scanTimeline.map((scanner) => (
+              <ScannerStatusCard key={scanner.scannerId} scanner={scanner} />
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Chart + feed */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2 bg-[hsl(var(--terminal-panel))] border-[color:var(--terminal-border-soft)] rounded-none">
@@ -140,7 +166,7 @@ export default function Dashboard() {
               Scanner Activity — Alerts Per Scanner
             </CardTitle>
           </CardHeader>
-          <CardContent className="h-[280px] px-2 pb-4">
+          <CardContent className="h-[260px] px-2 pb-4">
             {activityLoading ? (
               <Skeleton className="h-full w-full" />
             ) : (
@@ -231,6 +257,156 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function ScannerStatusCard({ scanner }: { scanner: ScannerTimeline }) {
+  const latest = scanner.recentScans[0] ?? null;
+  const hasError = !!latest?.error;
+  const hasStocks = (latest?.stocksFound ?? 0) > 0;
+
+  return (
+    <div className={`bg-[hsl(var(--terminal-panel))] border flex flex-col ${
+      !scanner.isActive
+        ? "border-[color:var(--terminal-border-soft)] opacity-60"
+        : hasError
+        ? "border-red-500/30"
+        : hasStocks
+        ? "border-[color:var(--terminal-border-soft)] shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.08)]"
+        : "border-[color:var(--terminal-border-soft)]"
+    }`}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-[color:var(--terminal-border-soft)]">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`inline-flex h-1.5 w-1.5 rounded-full shrink-0 ${
+            !scanner.isActive ? "bg-muted-foreground/40" :
+            hasError ? "bg-red-500" :
+            hasStocks ? "bg-green-500" : "bg-yellow-500"
+          }`} />
+          <span className="font-bold text-sm font-mono truncate">{scanner.scannerName}</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {!scanner.isActive && (
+            <Badge variant="outline" className="rounded-none text-[9px] font-mono px-1.5 py-0 border-muted-foreground/30 text-muted-foreground">
+              PAUSED
+            </Badge>
+          )}
+          {latest && (
+            <span className="text-[10px] font-mono text-muted-foreground/70">
+              {formatDistanceToNow(new Date(latest.scannedAt), { addSuffix: true })}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Status + latest stocks */}
+      <div className="px-4 py-3 flex-1">
+        {!latest ? (
+          <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider py-2">
+            No scans yet
+          </div>
+        ) : hasError ? (
+          <div className="flex items-start gap-2">
+            <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />
+            <span className="text-xs font-mono text-red-400 break-all">{latest.error}</span>
+          </div>
+        ) : latest.stocksFound === 0 ? (
+          <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+            <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+            Scanner ran — no stocks matched the criteria
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-3.5 w-3.5 text-green-400 shrink-0" />
+              <span className="text-xs font-mono text-green-400 font-medium">
+                {latest.stocksFound} stock{latest.stocksFound !== 1 ? "s" : ""} found
+              </span>
+              {latest.newAlerts > 0 ? (
+                <Badge variant="outline" className="rounded-none text-[9px] font-mono px-1.5 py-0 bg-primary/10 text-primary border-primary/40">
+                  {latest.newAlerts} new alert{latest.newAlerts !== 1 ? "s" : ""}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="rounded-none text-[9px] font-mono px-1.5 py-0 text-muted-foreground border-muted-foreground/20">
+                  all sent today
+                </Badge>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {latest.symbols.slice(0, 20).map((sym) => (
+                <span
+                  key={sym}
+                  className="inline-block px-1.5 py-0.5 bg-[hsl(var(--terminal-panel-strong))] border border-[color:var(--terminal-border-soft)] text-[10px] font-mono text-foreground"
+                >
+                  {sym}
+                </span>
+              ))}
+              {latest.symbols.length > 20 && (
+                <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                  +{latest.symbols.length - 20} more
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Mini timeline — last 8 scans as bar indicators */}
+      {scanner.recentScans.length > 0 && (
+        <div className="px-4 pb-3 border-t border-[color:var(--terminal-border-soft)] pt-2">
+          <div className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground/60 mb-1.5">
+            Last {scanner.recentScans.length} scans
+          </div>
+          <div className="flex items-end gap-1 h-8">
+            {[...scanner.recentScans].reverse().map((scan, i) => (
+              <ScanBar key={scan.id} scan={scan} index={i} total={scanner.recentScans.length} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScanBar({ scan, index, total }: { scan: ScanLogEntry; index: number; total: number }) {
+  const isLatest = index === total - 1;
+  const hasError = !!scan.error;
+  const isEmpty = scan.stocksFound === 0 && !hasError;
+  const hasNew = scan.newAlerts > 0;
+
+  const barColor = hasError
+    ? "bg-red-500"
+    : isEmpty
+    ? "bg-muted-foreground/30"
+    : hasNew
+    ? "bg-primary"
+    : "bg-green-500/60";
+
+  // Scale bar height: min 20%, max 100% of 2rem (8 = 32px)
+  const maxStocks = 10; // cap visual height at 10 stocks
+  const heightPct = hasError
+    ? 100
+    : isEmpty
+    ? 20
+    : Math.min(100, Math.max(20, (scan.stocksFound / maxStocks) * 100));
+
+  return (
+    <div
+      className="flex flex-col items-center gap-0.5 flex-1 group relative"
+      title={`${format(new Date(scan.scannedAt), "HH:mm")} — ${
+        hasError ? scan.error : `${scan.stocksFound} stocks, ${scan.newAlerts} new`
+      }`}
+    >
+      <div className="w-full flex items-end justify-center h-7">
+        <div
+          className={`w-full rounded-none transition-opacity ${barColor} ${isLatest ? "opacity-100" : "opacity-60"}`}
+          style={{ height: `${heightPct}%` }}
+        />
+      </div>
+      {isLatest && (
+        <div className="w-1 h-1 rounded-full bg-primary" />
+      )}
     </div>
   );
 }

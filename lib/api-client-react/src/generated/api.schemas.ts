@@ -101,6 +101,23 @@ export interface TelegramTestResult {
   message: string;
 }
 
+export interface ScanLogEntry {
+  id: number;
+  scannedAt: string;
+  stocksFound: number;
+  newAlerts: number;
+  symbols: string[];
+  /** @nullable */
+  error?: string | null;
+}
+
+export interface ScannerTimeline {
+  scannerId: number;
+  scannerName: string;
+  isActive: boolean;
+  recentScans: ScanLogEntry[];
+}
+
 export type ListAlertsParams = {
   scannerId?: number;
   symbol?: string;

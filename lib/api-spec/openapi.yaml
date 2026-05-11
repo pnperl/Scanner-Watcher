@@ -241,6 +241,21 @@ paths:
                 items:
                   $ref: "#/components/schemas/ScannerActivity"
 
+  /stats/scan-timeline:
+    get:
+      operationId: getScanTimeline
+      tags: [stats]
+      summary: Get per-scanner recent scan logs with stocks found
+      responses:
+        "200":
+          description: Scan timeline per scanner
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScannerTimeline"
+
   /config/telegram:
     get:
       operationId: getTelegramConfig
@@ -448,4 +463,38 @@ components:
           type: boolean
         message:
           type: string
+
+    ScanLogEntry:
+      type: object
+      required: [id, scannedAt, stocksFound, newAlerts, symbols]
+      properties:
+        id:
+          type: integer
+        scannedAt:
+          type: string
+        stocksFound:
+          type: integer
+        newAlerts:
+          type: integer
+        symbols:
+          type: array
+          items:
+            type: string
+        error:
+          type: ["string", "null"]
+
+    ScannerTimeline:
+      type: object
+      required: [scannerId, scannerName, isActive, recentScans]
+      properties:
+        scannerId:
+          type: integer
+        scannerName:
+          type: string
+        isActive:
+          type: boolean
+        recentScans:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScanLogEntry"
 

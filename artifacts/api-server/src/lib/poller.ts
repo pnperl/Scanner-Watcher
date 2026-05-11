@@ -1,5 +1,5 @@
-import { db, scannersTable, alertsTable } from "@workspace/db";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { db, scannersTable, alertsTable, scanLogsTable } from "@workspace/db";
+import { eq, and, sql } from "drizzle-orm";
 import { runChartinkScan } from "./chartink";
 import { sendTelegramAlert } from "./telegram";
 import { logger } from "./logger";
@@ -12,7 +12,6 @@ interface ScannerTimer {
 }
 
 const timers = new Map<number, ScannerTimer>();
-let masterInterval: ReturnType<typeof setInterval> | null = null;
 
 export async function runScanForScanner(scannerId: number): Promise<{
   stocksFound: number;
@@ -34,6 +33,19 @@ export async function runScanForScanner(scannerId: number): Promise<{
 
   if (result.error) {
     logger.warn({ scannerId, error: result.error }, "Scan error");
+    // Write error log
+    await db.insert(scanLogsTable).values({
+      scannerId,
+      stocksFound: 0,
+      newAlerts: 0,
+      symbols: [],
+      error: result.error,
+    });
+    await db
+      .update(scannersTable)
+      .set({ lastScannedAt: new Date() })
+      .where(eq(scannersTable.id, scannerId));
+    return { stocksFound: 0, newAlerts: 0, scannerName: scanner.name };
   }
 
   const stocks = result.stocks;
@@ -43,10 +55,6 @@ export async function runScanForScanner(scannerId: number): Promise<{
     .set({ lastScannedAt: new Date() })
     .where(eq(scannersTable.id, scannerId));
 
-  if (stocks.length === 0) {
-    return { stocksFound: 0, newAlerts: 0, scannerName: scanner.name };
-  }
-
   const symbols = stocks.map((s) => s.nsecode).filter(Boolean);
   const prices: Record<string, number | null> = {};
   for (const s of stocks) {
@@ -54,6 +62,14 @@ export async function runScanForScanner(scannerId: number): Promise<{
   }
 
   if (symbols.length === 0) {
+    // Write empty scan log
+    await db.insert(scanLogsTable).values({
+      scannerId,
+      stocksFound: 0,
+      newAlerts: 0,
+      symbols: [],
+      error: null,
+    });
     return { stocksFound: stocks.length, newAlerts: 0, scannerName: scanner.name };
   }
 
@@ -73,25 +89,36 @@ export async function runScanForScanner(scannerId: number): Promise<{
   const alreadySentToday = new Set(existingToday.map((a) => a.symbol));
   const newSymbols = symbols.filter((s) => !alreadySentToday.has(s));
 
-  if (newSymbols.length === 0) {
+  let newAlerts = 0;
+  let telegramSent = false;
+
+  if (newSymbols.length > 0) {
+    telegramSent = await sendTelegramAlert(scanner.name, newSymbols, prices);
+
+    const rows = newSymbols.map((sym) => ({
+      scannerId,
+      symbol: sym,
+      price: prices[sym] ?? null,
+      telegramSent,
+    }));
+
+    await db.insert(alertsTable).values(rows);
+    newAlerts = newSymbols.length;
+    logger.info({ scannerId, newAlerts, telegramSent }, "Scan complete");
+  } else {
     logger.info({ scannerId, total: symbols.length }, "All symbols already alerted today");
-    return { stocksFound: stocks.length, newAlerts: 0, scannerName: scanner.name };
   }
 
-  const telegramSent = await sendTelegramAlert(scanner.name, newSymbols, prices);
-
-  const rows = newSymbols.map((sym) => ({
+  // Write scan log with ALL found symbols (not just new ones)
+  await db.insert(scanLogsTable).values({
     scannerId,
-    symbol: sym,
-    price: prices[sym] ?? null,
-    telegramSent,
-  }));
+    stocksFound: stocks.length,
+    newAlerts,
+    symbols,
+    error: null,
+  });
 
-  await db.insert(alertsTable).values(rows);
-
-  logger.info({ scannerId, newAlerts: newSymbols.length, telegramSent }, "Scan complete");
-
-  return { stocksFound: stocks.length, newAlerts: newSymbols.length, scannerName: scanner.name };
+  return { stocksFound: stocks.length, newAlerts, scannerName: scanner.name };
 }
 
 async function scheduleScanner(scannerId: number, intervalMinutes: number): Promise<void> {

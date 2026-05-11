@@ -203,6 +203,26 @@ export const GetScannerActivityResponse = zod.array(
 );
 
 /**
+ * @summary Get per-scanner recent scan logs with stocks found
+ */
+export const GetScanTimelineResponseItem = zod.object({
+  scannerId: zod.number(),
+  scannerName: zod.string(),
+  isActive: zod.boolean(),
+  recentScans: zod.array(
+    zod.object({
+      id: zod.number(),
+      scannedAt: zod.string(),
+      stocksFound: zod.number(),
+      newAlerts: zod.number(),
+      symbols: zod.array(zod.string()),
+      error: zod.string().nullish(),
+    }),
+  ),
+});
+export const GetScanTimelineResponse = zod.array(GetScanTimelineResponseItem);
+
+/**
  * @summary Get Telegram configuration status
  */
 export const GetTelegramConfigResponse = zod.object({
