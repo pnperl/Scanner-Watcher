@@ -121,13 +121,19 @@ export async function runScanForScanner(scannerId: number): Promise<{
   return { stocksFound: stocks.length, newAlerts, scannerName: scanner.name };
 }
 
-async function scheduleScanner(scannerId: number, intervalMinutes: number): Promise<void> {
+async function scheduleScanner(
+  scannerId: number,
+  intervalMinutes: number,
+  initialDelayMs = 0,
+): Promise<void> {
   const existing = timers.get(scannerId);
   if (existing?.timer) {
     clearTimeout(existing.timer);
   }
 
   const intervalMs = intervalMinutes * 60 * 1000;
+  // First run fires after the interval PLUS any stagger offset
+  const firstDelay = intervalMs + initialDelayMs;
 
   const run = async () => {
     try {
@@ -138,17 +144,18 @@ async function scheduleScanner(scannerId: number, intervalMinutes: number): Prom
     const t = timers.get(scannerId);
     if (t) {
       t.timer = setTimeout(run, t.intervalMs);
+      t.nextRunAt = Date.now() + t.intervalMs;
     }
   };
 
   timers.set(scannerId, {
     scannerId,
     intervalMs,
-    nextRunAt: Date.now() + intervalMs,
-    timer: setTimeout(run, intervalMs),
+    nextRunAt: Date.now() + firstDelay,
+    timer: setTimeout(run, firstDelay),
   });
 
-  logger.info({ scannerId, intervalMinutes }, "Scanner scheduled");
+  logger.info({ scannerId, intervalMinutes, initialDelayMs }, "Scanner scheduled");
 }
 
 export function unscheduleScanner(scannerId: number): void {
@@ -159,6 +166,9 @@ export function unscheduleScanner(scannerId: number): void {
   timers.delete(scannerId);
 }
 
+/** Seconds to wait between starting each scanner on boot to avoid burst requests */
+const BOOT_STAGGER_MS = 15_000;
+
 export async function startPoller(): Promise<void> {
   logger.info("Starting Chartink poller");
 
@@ -167,8 +177,10 @@ export async function startPoller(): Promise<void> {
     .from(scannersTable)
     .where(eq(scannersTable.isActive, true));
 
-  for (const scanner of scanners) {
-    await scheduleScanner(scanner.id, scanner.intervalMinutes);
+  for (let i = 0; i < scanners.length; i++) {
+    const scanner = scanners[i]!;
+    // Stagger first run: scanner 0 fires at interval, scanner 1 at interval+15s, etc.
+    await scheduleScanner(scanner.id, scanner.intervalMinutes, i * BOOT_STAGGER_MS);
   }
 
   logger.info({ count: scanners.length }, "Poller started with active scanners");

@@ -13,6 +13,59 @@ export interface ChartinkResult {
   error?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Global Chartink request throttle
+// All scans (regardless of scanner) are serialised through this queue so we
+// never hit Chartink with concurrent requests from the same server IP.
+// ---------------------------------------------------------------------------
+
+const MIN_SPACING_MS = 4_000;   // at least 4 s between consecutive Chartink hits
+const JITTER_MS      = 2_000;   // up to +2 s extra jitter
+
+let queueTail: Promise<void> = Promise.resolve();
+let lastRequestTime = 0;
+/** When >0, all queued work waits until this timestamp before proceeding. */
+let backoffUntil = 0;
+
+function enqueueChartinkRequest<T>(fn: () => Promise<T>): Promise<T> {
+  const result = queueTail.then(async (): Promise<T> => {
+    // Respect global 429 backoff
+    const now = Date.now();
+    if (backoffUntil > now) {
+      const wait = backoffUntil - now;
+      logger.warn({ waitMs: wait }, "Chartink global backoff active — waiting");
+      await sleep(wait);
+    }
+
+    // Enforce minimum spacing since last request
+    const elapsed = Date.now() - lastRequestTime;
+    if (elapsed < MIN_SPACING_MS) {
+      const extra = MIN_SPACING_MS - elapsed + Math.floor(Math.random() * JITTER_MS);
+      await sleep(extra);
+    }
+
+    const r = await fn();
+    lastRequestTime = Date.now();
+    return r;
+  });
+
+  // Chain future work onto the settled result (ignore errors so queue keeps draining)
+  queueTail = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function randomDelay(min: number, max: number): Promise<void> {
+  return sleep(Math.floor(Math.random() * (max - min + 1)) + min);
+}
+
+// ---------------------------------------------------------------------------
+// User-agent pool
+// ---------------------------------------------------------------------------
+
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -25,42 +78,53 @@ function randomUserAgent(): string {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]!;
 }
 
-function randomDelay(min: number, max: number): Promise<void> {
-  const ms = Math.floor(Math.random() * (max - min + 1)) + min;
-  return new Promise((r) => setTimeout(r, ms));
-}
+// ---------------------------------------------------------------------------
+// URL helpers
+// ---------------------------------------------------------------------------
 
-/** Derive the canonical screener page URL from whatever the user saved */
 function buildScreenerPageUrl(scannerUrl: string): string {
-  // Already a full Chartink URL → use as-is
-  if (scannerUrl.startsWith("https://chartink.com") || scannerUrl.startsWith("http://chartink.com")) {
+  if (
+    scannerUrl.startsWith("https://chartink.com") ||
+    scannerUrl.startsWith("http://chartink.com")
+  ) {
     return scannerUrl;
   }
-  // Bare slug or id
   return `https://chartink.com/screener/${encodeURIComponent(scannerUrl)}`;
 }
+
+function deriveScanClauseFromUrl(scannerUrl: string): string | null {
+  const clauseMatch = scannerUrl.match(/[?&]scan_clause=([^&]+)/);
+  if (clauseMatch) return decodeURIComponent(clauseMatch[1]!);
+
+  const numericMatch = scannerUrl.match(/\/screener\/(\d+)\/?(?:[?#].*)?$/);
+  if (numericMatch) return numericMatch[1]!;
+
+  const slugMatch = scannerUrl.match(/\/screener\/([a-z0-9][a-z0-9-]*)(?:\/|\?|#|$)/i);
+  if (slugMatch) return slugMatch[1]!;
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Page session (CSRF + cookies + embedded scan clause)
+// ---------------------------------------------------------------------------
 
 interface PageSession {
   csrf: string;
   cookies: string;
-  /** The actual scan criteria expression extracted from the page (may be empty for inline clause URLs) */
-  scanClause: string | null;
+  scanClause: string | null; // extracted from page HTML if present
 }
 
-/**
- * Load the specific screener page. Returns:
- *   - csrf token
- *   - all session cookies (to replay on the POST)
- *   - the actual scan_clause expression embedded in the page HTML
- *
- * Chartink renders the criteria inside several possible elements. We try each in order.
- */
-async function fetchPageSession(screenerUrl: string, userAgent: string): Promise<PageSession | null> {
+async function fetchPageSession(
+  screenerUrl: string,
+  userAgent: string,
+): Promise<PageSession | null> {
   try {
     const resp = await fetch(screenerUrl, {
       headers: {
         "User-Agent": userAgent,
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
         "Accept-Encoding": "gzip, deflate, br",
         Connection: "keep-alive",
@@ -74,7 +138,7 @@ async function fetchPageSession(screenerUrl: string, userAgent: string): Promise
     });
 
     if (!resp.ok) {
-      logger.warn({ status: resp.status, screenerUrl }, "Screener page fetch returned non-200");
+      logger.warn({ status: resp.status, screenerUrl }, "Screener page returned non-200");
       return null;
     }
 
@@ -82,16 +146,18 @@ async function fetchPageSession(screenerUrl: string, userAgent: string): Promise
     const rawCookies: string[] = [];
     resp.headers.forEach((value, key) => {
       if (key.toLowerCase() === "set-cookie") {
-        const cookiePart = value.split(";")[0];
-        if (cookiePart) rawCookies.push(cookiePart.trim());
+        const part = value.split(";")[0];
+        if (part) rawCookies.push(part.trim());
       }
     });
 
     const html = await resp.text();
 
-    // --- CSRF token ---
+    // CSRF token — try meta tag then hidden input
     let csrf: string | null = null;
-    const metaMatch = html.match(/meta\s+name=["']csrf-token["']\s+content=["']([^"']+)["']/i);
+    const metaMatch = html.match(
+      /meta\s+name=["']csrf-token["']\s+content=["']([^"']+)["']/i,
+    );
     if (metaMatch) csrf = metaMatch[1]!;
     if (!csrf) {
       const inputMatch = html.match(/name=["']_token["']\s+value=["']([^"']+)["']/i);
@@ -99,38 +165,31 @@ async function fetchPageSession(screenerUrl: string, userAgent: string): Promise
     }
 
     if (!csrf) {
-      logger.warn({ screenerUrl }, "Could not find CSRF token in page HTML");
+      logger.warn({ screenerUrl }, "CSRF token not found in page HTML");
       return null;
     }
 
-    // --- Scan clause ---
-    // Chartink embeds the criteria in several possible ways depending on page type:
+    // Embedded scan clause — try several patterns Chartink uses
     let scanClause: string | null = null;
 
-    // 1) <textarea id="scan_clause">…</textarea>  (most common for saved screeners)
-    const textareaMatch = html.match(/<textarea[^>]*id=["']scan_clause["'][^>]*>([\s\S]*?)<\/textarea>/i);
+    const textareaMatch = html.match(
+      /<textarea[^>]*id=["']scan_clause["'][^>]*>([\s\S]*?)<\/textarea>/i,
+    );
     if (textareaMatch) scanClause = decodeHtmlEntities(textareaMatch[1]!.trim());
 
-    // 2) <input … name="scan_clause" value="…">
     if (!scanClause) {
       const inputMatch = html.match(/name=["']scan_clause["'][^>]*value=["']([^"']+)["']/i);
       if (inputMatch) scanClause = decodeHtmlEntities(inputMatch[1]!);
     }
     if (!scanClause) {
-      const inputMatch2 = html.match(/value=["']([^"']+)["'][^>]*name=["']scan_clause["']/i);
+      const inputMatch2 = html.match(
+        /value=["']([^"']+)["'][^>]*name=["']scan_clause["']/i,
+      );
       if (inputMatch2) scanClause = decodeHtmlEntities(inputMatch2[1]!);
     }
-
-    // 3) JavaScript variable: scan_clause = "…" or var scan_clause="…"
     if (!scanClause) {
       const jsMatch = html.match(/(?:var\s+)?scan_clause\s*=\s*["']([^"']+)["']/i);
       if (jsMatch) scanClause = decodeHtmlEntities(jsMatch[1]!);
-    }
-
-    // 4) data attribute on any element
-    if (!scanClause) {
-      const dataMatch = html.match(/data-scan[_-]clause=["']([^"']+)["']/i);
-      if (dataMatch) scanClause = decodeHtmlEntities(dataMatch[1]!);
     }
 
     logger.info(
@@ -138,8 +197,8 @@ async function fetchPageSession(screenerUrl: string, userAgent: string): Promise
         screenerUrl,
         csrfLength: csrf.length,
         cookieCount: rawCookies.length,
-        scanClauseLength: scanClause?.length ?? 0,
-        scanClausePreview: scanClause?.slice(0, 80) ?? "(not found in page)",
+        scanClauseSource: scanClause ? "page-html" : "none",
+        scanClausePreview: scanClause?.slice(0, 80) ?? "(not in HTML — will use URL)",
       },
       "Page session fetched",
     );
@@ -151,7 +210,6 @@ async function fetchPageSession(screenerUrl: string, userAgent: string): Promise
   }
 }
 
-/** Minimal HTML entity decoding for scan clause content */
 function decodeHtmlEntities(s: string): string {
   return s
     .replace(/&amp;/g, "&")
@@ -162,93 +220,112 @@ function decodeHtmlEntities(s: string): string {
     .replace(/&#39;/g, "'");
 }
 
-/**
- * Derive the scan_clause for the POST body.
- *
- * Priority:
- *   1. Clause extracted from the page HTML (most accurate for named screeners)
- *   2. ?scan_clause= query param from the URL (inline expression URLs)
- *   3. The URL slug/numeric ID (last resort — works for some numeric screener IDs)
- */
-function deriveScanClause(screenerUrl: string, pageClause: string | null): string | null {
-  if (pageClause && pageClause.length > 0) return pageClause;
+// ---------------------------------------------------------------------------
+// Core scan — runs inside the global serial queue
+// ---------------------------------------------------------------------------
 
-  const clauseMatch = screenerUrl.match(/[?&]scan_clause=([^&]+)/);
-  if (clauseMatch) return decodeURIComponent(clauseMatch[1]!);
-
-  // Numeric ID (Chartink resolves these server-side)
-  const numericMatch = screenerUrl.match(/\/screener\/(\d+)\/?(?:[?#].*)?$/);
-  if (numericMatch) return numericMatch[1]!;
-
-  // Named slug — last resort; may not work correctly
-  const slugMatch = screenerUrl.match(/\/screener\/([a-z0-9][a-z0-9-]*)\/?(?:[?#].*)?$/i);
-  if (slugMatch) return slugMatch[1]!;
-
-  return null;
-}
-
-export async function runChartinkScan(scannerUrl: string): Promise<ChartinkResult> {
-  const screenerPageUrl = buildScreenerPageUrl(scannerUrl);
+async function doScan(screenerUrl: string, attempt: number): Promise<ChartinkResult> {
   const userAgent = randomUserAgent();
+  const screenerPageUrl = buildScreenerPageUrl(screenerUrl);
 
-  // Human-like delay before loading the page
-  await randomDelay(800, 2200);
+  // Human-like reading delay before hitting the page
+  await randomDelay(1_000, 2_500);
 
   const session = await fetchPageSession(screenerPageUrl, userAgent);
   if (!session) {
-    return { stocks: [], error: "Failed to load screener page (could not get CSRF token)" };
+    return { stocks: [], error: "Failed to load screener page (CSRF unavailable)" };
   }
 
-  const scanClause = deriveScanClause(scannerUrl, session.scanClause);
+  // Use clause from page HTML if found; fall back to the URL slug/clause
+  const scanClause =
+    (session.scanClause && session.scanClause.length > 0)
+      ? session.scanClause
+      : deriveScanClauseFromUrl(screenerUrl);
+
   if (!scanClause) {
-    return { stocks: [], error: "Could not determine scan clause from URL or page" };
+    return { stocks: [], error: "Could not determine scan_clause from URL or page" };
   }
 
-  logger.info({ scanClause: scanClause.slice(0, 100), screenerPageUrl }, "Using scan clause");
+  logger.info(
+    { attempt, scanClause: scanClause.slice(0, 80), screenerPageUrl },
+    "Sending scan POST",
+  );
 
-  // Delay between page load and XHR (mimic user reading the page before running it)
-  await randomDelay(1200, 2800);
+  // Mimic delay between page load and the XHR the browser fires
+  await randomDelay(1_500, 3_000);
 
-  try {
-    const resp = await fetch("https://chartink.com/screener/process", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "X-Requested-With": "XMLHttpRequest",
-        "X-CSRF-TOKEN": session.csrf,
-        "User-Agent": userAgent,
-        Referer: screenerPageUrl,
-        Origin: "https://chartink.com",
-        Accept: "application/json, text/javascript, */*; q=0.01",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Accept-Encoding": "gzip, deflate, br",
-        Connection: "keep-alive",
-        Cookie: session.cookies,
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "same-origin",
-      },
-      body: `scan_clause=${encodeURIComponent(scanClause)}`,
-    });
+  const resp = await fetch("https://chartink.com/screener/process", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      "X-Requested-With": "XMLHttpRequest",
+      "X-CSRF-TOKEN": session.csrf,
+      "User-Agent": userAgent,
+      Referer: screenerPageUrl,
+      Origin: "https://chartink.com",
+      Accept: "application/json, text/javascript, */*; q=0.01",
+      "Accept-Language": "en-US,en;q=0.5",
+      "Accept-Encoding": "gzip, deflate, br",
+      Connection: "keep-alive",
+      Cookie: session.cookies,
+      "Sec-Fetch-Dest": "empty",
+      "Sec-Fetch-Mode": "cors",
+      "Sec-Fetch-Site": "same-origin",
+    },
+    body: `scan_clause=${encodeURIComponent(scanClause)}`,
+  });
 
-    if (!resp.ok) {
-      const body = await resp.text().catch(() => "");
-      logger.warn(
-        { status: resp.status, url: scannerUrl, body: body.slice(0, 300) },
-        "Chartink POST returned non-200",
-      );
-      return { stocks: [], error: `HTTP ${resp.status}` };
-    }
-
-    const data = (await resp.json()) as { data?: ChartinkStock[]; error?: string };
-
-    if (data.error) {
-      return { stocks: [], error: data.error };
-    }
-
-    return { stocks: data.data ?? [] };
-  } catch (err) {
-    logger.error({ err }, "Chartink scan POST failed");
-    return { stocks: [], error: String(err) };
+  if (resp.status === 429) {
+    const retryAfter = parseInt(resp.headers.get("retry-after") ?? "0", 10);
+    const backoffMs = Math.max(retryAfter * 1_000, 3 * 60 * 1_000); // min 3 min
+    backoffUntil = Date.now() + backoffMs;
+    logger.warn({ backoffMs }, "Chartink 429 — global backoff set");
+    return { stocks: [], error: "HTTP 429 (rate limited — pausing all scans)" };
   }
+
+  if (resp.status === 419) {
+    logger.warn({ attempt, url: screenerUrl }, "Chartink 419 CSRF mismatch");
+    return { stocks: [], error: "HTTP 419 (CSRF mismatch)" };
+  }
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => "");
+    logger.warn(
+      { status: resp.status, url: screenerUrl, body: body.slice(0, 300) },
+      "Chartink POST non-200",
+    );
+    return { stocks: [], error: `HTTP ${resp.status}` };
+  }
+
+  const data = (await resp.json()) as { data?: ChartinkStock[]; error?: string };
+  if (data.error) return { stocks: [], error: data.error };
+  return { stocks: data.data ?? [] };
+}
+
+// ---------------------------------------------------------------------------
+// Public API — queued, with 419 retry
+// ---------------------------------------------------------------------------
+
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 5_000; // wait 5 s before retry on 419
+
+export async function runChartinkScan(scannerUrl: string): Promise<ChartinkResult> {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const result = await enqueueChartinkRequest(() => doScan(scannerUrl, attempt));
+
+    if (!result.error || result.error.includes("429")) {
+      // Success or hard rate limit — don't retry either way
+      return result;
+    }
+
+    if (result.error.includes("419") && attempt < MAX_RETRIES) {
+      logger.info({ attempt, scannerUrl }, "419 received — will retry with fresh CSRF");
+      await sleep(RETRY_DELAY_MS);
+      continue;
+    }
+
+    return result;
+  }
+
+  return { stocks: [], error: "Max retries exceeded" };
 }
