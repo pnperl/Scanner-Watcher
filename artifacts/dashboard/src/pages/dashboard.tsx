@@ -1,21 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetStatsSummary, getGetStatsSummaryQueryKey,
   useGetScannerActivity, getGetScannerActivityQueryKey,
   useGetRecentAlerts, getGetRecentAlertsQueryKey,
   useListScanners, getListScannersQueryKey,
   useGetScanTimeline, getGetScanTimelineQueryKey,
+  useScanAll,
+  useToggleAll,
 } from "@workspace/api-client-react";
 import type { ScanLogEntry, ScannerTimeline } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { format, formatDistanceToNow } from "date-fns";
-import { TrendingUp, Bell, Activity, Clock, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { TrendingUp, Bell, Activity, Clock, AlertTriangle, CheckCircle2, XCircle, Play, Pause, Zap, Loader2 } from "lucide-react";
 
 export default function Dashboard() {
   const [now, setNow] = useState(() => Date.now());
+  const queryClient = useQueryClient();
 
   const { data: stats, isLoading: statsLoading } = useGetStatsSummary({
     query: { queryKey: getGetStatsSummaryQueryKey(), refetchInterval: 30000 },
@@ -30,7 +35,7 @@ export default function Dashboard() {
     { query: { queryKey: getGetRecentAlertsQueryKey({ limit: 15 }), refetchInterval: 30000 } },
   );
 
-  const { data: scanners } = useListScanners({
+  const { data: scanners, isLoading: scannersLoading } = useListScanners({
     query: { queryKey: getListScannersQueryKey(), refetchInterval: 30000 },
   });
 
@@ -38,22 +43,22 @@ export default function Dashboard() {
     query: { queryKey: getGetScanTimelineQueryKey(), refetchInterval: 30000 },
   });
 
+  const scanAllMutation = useScanAll();
+  const toggleAllMutation = useToggleAll();
+
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
 
+  // Use server-provided nextScanAt from scanner data (accurate — actual timer state)
   const nextScanInfo = useMemo(() => {
     if (!scanners) return null;
-    const active = scanners.filter((s) => s.isActive);
+    const active = scanners.filter((s) => s.isActive && s.nextScanAt);
     if (active.length === 0) return null;
-
     let soonest: { name: string; nextAt: number } | null = null;
     for (const s of active) {
-      const baseTime = s.lastScannedAt
-        ? new Date(s.lastScannedAt).getTime()
-        : Date.now() - s.intervalMinutes * 60 * 1000;
-      const nextAt = baseTime + s.intervalMinutes * 60 * 1000;
+      const nextAt = new Date(s.nextScanAt!).getTime();
       if (!soonest || nextAt < soonest.nextAt) {
         soonest = { name: s.name, nextAt };
       }
@@ -71,11 +76,48 @@ export default function Dashboard() {
   }, [now, nextScanInfo]);
 
   const nextScanLabel = useMemo(() => {
-    if (!nextScanInfo) return "No active scanners";
+    if (!scanners) return "Loading...";
+    const active = scanners.filter((s) => s.isActive);
+    if (active.length === 0) return "All scanners paused";
+    if (!nextScanInfo) return "Queued...";
     const remaining = Math.max(0, nextScanInfo.nextAt - now);
-    if (remaining === 0) return "Scanning now...";
+    if (remaining === 0) return "Running scan...";
     return nextScanInfo.name;
-  }, [now, nextScanInfo]);
+  }, [scanners, nextScanInfo, now]);
+
+  const allPaused = useMemo(() => {
+    if (!scanners || scanners.length === 0) return false;
+    return scanners.every((s) => !s.isActive);
+  }, [scanners]);
+
+  const hasActiveScanners = useMemo(() => {
+    return scanners?.some((s) => s.isActive) ?? false;
+  }, [scanners]);
+
+  function invalidateAll() {
+    void queryClient.invalidateQueries({ queryKey: getListScannersQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: getGetScanTimelineQueryKey() });
+  }
+
+  function handleScanAll() {
+    scanAllMutation.mutate(undefined, {
+      onSuccess: () => {
+        // Kick off a re-fetch after a short delay to catch results
+        setTimeout(invalidateAll, 8000);
+      },
+    });
+  }
+
+  function handleToggleAll() {
+    toggleAllMutation.mutate(
+      { isActive: allPaused },
+      { onSuccess: invalidateAll },
+    );
+  }
+
+  const scanAllBusy = scanAllMutation.isPending;
+  const toggleAllBusy = toggleAllMutation.isPending || scannersLoading;
 
   return (
     <div className="space-y-6">
@@ -89,11 +131,55 @@ export default function Dashboard() {
             </Badge>
           </div>
           <p className="text-muted-foreground text-xs font-mono uppercase tracking-wider">Real-time market scanner overview</p>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 mt-3">
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-none h-7 px-3 text-[10px] font-mono uppercase tracking-wider border-primary/50 text-primary hover:bg-primary/10 hover:border-primary disabled:opacity-50"
+              onClick={handleScanAll}
+              disabled={scanAllBusy || !hasActiveScanners}
+            >
+              {scanAllBusy ? (
+                <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+              ) : (
+                <Zap className="h-3 w-3 mr-1.5" />
+              )}
+              {scanAllBusy ? "Queuing..." : "Scan Now"}
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              className={`rounded-none h-7 px-3 text-[10px] font-mono uppercase tracking-wider disabled:opacity-50 ${
+                allPaused
+                  ? "border-green-500/50 text-green-400 hover:bg-green-500/10 hover:border-green-500"
+                  : "border-muted-foreground/40 text-muted-foreground hover:bg-muted/20 hover:border-muted-foreground/60"
+              }`}
+              onClick={handleToggleAll}
+              disabled={toggleAllBusy || !scanners || scanners.length === 0}
+            >
+              {toggleAllBusy ? (
+                <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+              ) : allPaused ? (
+                <Play className="h-3 w-3 mr-1.5" />
+              ) : (
+                <Pause className="h-3 w-3 mr-1.5" />
+              )}
+              {toggleAllBusy ? "..." : allPaused ? "Resume All" : "Pause All"}
+            </Button>
+          </div>
         </div>
+
         <div className="flex flex-col items-end text-right font-mono shrink-0">
           <span className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Next Scan</span>
-          <span className="text-4xl font-bold text-primary leading-none tabular-nums">{nextScanCountdown}</span>
-          <span className="text-[10px] text-muted-foreground mt-1 max-w-[160px] truncate">{nextScanLabel}</span>
+          <span className={`text-4xl font-bold leading-none tabular-nums ${
+            allPaused ? "text-muted-foreground/50" : "text-primary"
+          }`}>
+            {allPaused ? "--:--" : nextScanCountdown}
+          </span>
+          <span className="text-[10px] text-muted-foreground mt-1 max-w-[180px] truncate">{nextScanLabel}</span>
         </div>
       </div>
 
@@ -383,8 +469,7 @@ function ScanBar({ scan, index, total }: { scan: ScanLogEntry; index: number; to
     ? "bg-primary"
     : "bg-green-500/60";
 
-  // Scale bar height: min 20%, max 100% of 2rem (8 = 32px)
-  const maxStocks = 10; // cap visual height at 10 stocks
+  const maxStocks = 10;
   const heightPct = hasError
     ? 100
     : isEmpty

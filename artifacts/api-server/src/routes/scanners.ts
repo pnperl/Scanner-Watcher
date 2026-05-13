@@ -11,7 +11,14 @@ import {
   ToggleScannerBody,
   TriggerScanParams,
 } from "@workspace/api-zod";
-import { runScanForScanner, scheduleScanner, unscheduleScanner } from "../lib/poller";
+import {
+  runScanForScanner,
+  scheduleScanner,
+  unscheduleScanner,
+  getNextScanAt,
+  triggerAllScannersAsync,
+  setAllScannersActive,
+} from "../lib/poller";
 
 const router: IRouter = Router();
 
@@ -58,8 +65,26 @@ router.get("/scanners", async (_req, res): Promise<void> => {
       ...r,
       createdAt: r.createdAt.toISOString(),
       lastScannedAt: r.lastScannedAt?.toISOString() ?? null,
+      nextScanAt: getNextScanAt(r.id),
     }))
   );
+});
+
+// Static bulk routes — must appear before /:id dynamic routes
+router.post("/scanners/scan-all", async (_req, res): Promise<void> => {
+  const triggered = triggerAllScannersAsync();
+  res.status(202).json({ triggered });
+});
+
+router.patch("/scanners/toggle-all", async (req, res): Promise<void> => {
+  const parsed = ToggleScannerBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const count_ = await setAllScannersActive(parsed.data.isActive);
+  res.json({ triggered: count_ });
 });
 
 router.post("/scanners", async (req, res): Promise<void> => {
@@ -93,6 +118,7 @@ router.post("/scanners", async (req, res): Promise<void> => {
     ...scanner,
     createdAt: scanner.createdAt.toISOString(),
     lastScannedAt: scanner.lastScannedAt?.toISOString() ?? null,
+    nextScanAt: getNextScanAt(scanner.id),
     alertCount: 0,
   });
 });
@@ -114,6 +140,7 @@ router.get("/scanners/:id", async (req, res): Promise<void> => {
     ...row,
     createdAt: row.createdAt.toISOString(),
     lastScannedAt: row.lastScannedAt?.toISOString() ?? null,
+    nextScanAt: getNextScanAt(params.data.id),
   });
 });
 
@@ -152,6 +179,7 @@ router.patch("/scanners/:id", async (req, res): Promise<void> => {
     ...row,
     createdAt: row!.createdAt.toISOString(),
     lastScannedAt: row!.lastScannedAt?.toISOString() ?? null,
+    nextScanAt: getNextScanAt(updated.id),
   });
 });
 
@@ -211,6 +239,7 @@ router.patch("/scanners/:id/toggle", async (req, res): Promise<void> => {
     ...row,
     createdAt: row!.createdAt.toISOString(),
     lastScannedAt: row!.lastScannedAt?.toISOString() ?? null,
+    nextScanAt: getNextScanAt(updated.id),
   });
 });
 

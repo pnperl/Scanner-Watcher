@@ -21,6 +21,7 @@ import type {
   GetRecentAlertsParams,
   HealthStatus,
   ListAlertsParams,
+  ScanAllResult,
   ScanResult,
   Scanner,
   ScannerActivity,
@@ -622,6 +623,173 @@ export const useToggleScanner = <
   TContext
 > => {
   return useMutation(getToggleScannerMutationOptions(options));
+};
+
+/**
+ * @summary Trigger a manual scan for all active scanners (fire-and-forget)
+ */
+export const getScanAllUrl = () => {
+  return `/api/scanners/scan-all`;
+};
+
+export const scanAll = async (
+  options?: RequestInit,
+): Promise<ScanAllResult> => {
+  return customFetch<ScanAllResult>(getScanAllUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getScanAllMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scanAll>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof scanAll>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["scanAll"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof scanAll>>,
+    void
+  > = () => {
+    return scanAll(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ScanAllMutationResult = NonNullable<
+  Awaited<ReturnType<typeof scanAll>>
+>;
+
+export type ScanAllMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Trigger a manual scan for all active scanners (fire-and-forget)
+ */
+export const useScanAll = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scanAll>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof scanAll>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getScanAllMutationOptions(options));
+};
+
+/**
+ * @summary Pause or resume all scanners
+ */
+export const getToggleAllUrl = () => {
+  return `/api/scanners/toggle-all`;
+};
+
+export const toggleAll = async (
+  scannerToggle: ScannerToggle,
+  options?: RequestInit,
+): Promise<ScanAllResult> => {
+  return customFetch<ScanAllResult>(getToggleAllUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(scannerToggle),
+  });
+};
+
+export const getToggleAllMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleAll>>,
+    TError,
+    { data: BodyType<ScannerToggle> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof toggleAll>>,
+  TError,
+  { data: BodyType<ScannerToggle> },
+  TContext
+> => {
+  const mutationKey = ["toggleAll"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof toggleAll>>,
+    { data: BodyType<ScannerToggle> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return toggleAll(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ToggleAllMutationResult = NonNullable<
+  Awaited<ReturnType<typeof toggleAll>>
+>;
+export type ToggleAllMutationBody = BodyType<ScannerToggle>;
+export type ToggleAllMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Pause or resume all scanners
+ */
+export const useToggleAll = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleAll>>,
+    TError,
+    { data: BodyType<ScannerToggle> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof toggleAll>>,
+  TError,
+  { data: BodyType<ScannerToggle> },
+  TContext
+> => {
+  return useMutation(getToggleAllMutationOptions(options));
 };
 
 /**

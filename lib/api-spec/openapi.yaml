@@ -144,6 +144,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/Scanner"
 
+  /scanners/scan-all:
+    post:
+      operationId: scanAll
+      tags: [scanners]
+      summary: Trigger a manual scan for all active scanners (fire-and-forget)
+      responses:
+        "202":
+          description: Scans queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanAllResult"
+
+  /scanners/toggle-all:
+    patch:
+      operationId: toggleAll
+      tags: [scanners]
+      summary: Pause or resume all scanners
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScannerToggle"
+      responses:
+        "200":
+          description: All scanners toggled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanAllResult"
+
   /scanners/{id}/scan:
     post:
       operationId: triggerScan
@@ -326,6 +358,8 @@ components:
           type: string
         lastScannedAt:
           type: ["string", "null"]
+        nextScanAt:
+          type: ["string", "null"]
         alertCount:
           type: integer
         description:
@@ -400,6 +434,13 @@ components:
           type: integer
         scannerName:
           type: string
+
+    ScanAllResult:
+      type: object
+      required: [triggered]
+      properties:
+        triggered:
+          type: integer
 
     StatsSummary:
       type: object

@@ -18,6 +18,8 @@ export interface Scanner {
   createdAt: string;
   /** @nullable */
   lastScannedAt: string | null;
+  /** @nullable */
+  nextScanAt?: string | null;
   alertCount: number;
   /** @nullable */
   description?: string | null;
@@ -61,6 +63,10 @@ export interface ScanResult {
   stocksFound: number;
   newAlerts: number;
   scannerName: string;
+}
+
+export interface ScanAllResult {
+  triggered: number;
 }
 
 export interface StatsSummary {

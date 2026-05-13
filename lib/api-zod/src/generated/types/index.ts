@@ -10,6 +10,7 @@ export * from "./alert";
 export * from "./getRecentAlertsParams";
 export * from "./healthStatus";
 export * from "./listAlertsParams";
+export * from "./scanAllResult";
 export * from "./scanLogEntry";
 export * from "./scanner";
 export * from "./scannerActivity";

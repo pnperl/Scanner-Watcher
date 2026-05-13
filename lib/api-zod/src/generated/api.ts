@@ -25,6 +25,7 @@ export const ListScannersResponseItem = zod.object({
   isActive: zod.boolean(),
   createdAt: zod.string(),
   lastScannedAt: zod.string().nullable(),
+  nextScanAt: zod.string().nullish(),
   alertCount: zod.number(),
   description: zod.string().nullish(),
 });
@@ -62,6 +63,7 @@ export const GetScannerResponse = zod.object({
   isActive: zod.boolean(),
   createdAt: zod.string(),
   lastScannedAt: zod.string().nullable(),
+  nextScanAt: zod.string().nullish(),
   alertCount: zod.number(),
   description: zod.string().nullish(),
 });
@@ -89,6 +91,7 @@ export const UpdateScannerResponse = zod.object({
   isActive: zod.boolean(),
   createdAt: zod.string(),
   lastScannedAt: zod.string().nullable(),
+  nextScanAt: zod.string().nullish(),
   alertCount: zod.number(),
   description: zod.string().nullish(),
 });
@@ -119,8 +122,20 @@ export const ToggleScannerResponse = zod.object({
   isActive: zod.boolean(),
   createdAt: zod.string(),
   lastScannedAt: zod.string().nullable(),
+  nextScanAt: zod.string().nullish(),
   alertCount: zod.number(),
   description: zod.string().nullish(),
+});
+
+/**
+ * @summary Pause or resume all scanners
+ */
+export const ToggleAllBody = zod.object({
+  isActive: zod.boolean(),
+});
+
+export const ToggleAllResponse = zod.object({
+  triggered: zod.number(),
 });
 
 /**

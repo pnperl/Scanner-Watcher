@@ -166,6 +166,50 @@ export function unscheduleScanner(scannerId: number): void {
   timers.delete(scannerId);
 }
 
+/** Returns the ISO timestamp of the next scheduled run for a scanner, or null if not scheduled. */
+export function getNextScanAt(scannerId: number): string | null {
+  const t = timers.get(scannerId);
+  if (!t) return null;
+  return new Date(t.nextRunAt).toISOString();
+}
+
+/** Fire-and-forget: queue a scan for every currently-active scanner. */
+export function triggerAllScannersAsync(): number {
+  const ids = [...timers.keys()];
+  for (const id of ids) {
+    runScanForScanner(id).catch((err) => {
+      logger.error({ err, scannerId: id }, "scan-all scan failed");
+    });
+  }
+  return ids.length;
+}
+
+/**
+ * Pause or resume ALL scanners.
+ * - false: cancel all timers + mark isActive=false in DB
+ * - true: mark ALL isActive=true in DB + schedule all timers
+ */
+export async function setAllScannersActive(isActive: boolean): Promise<number> {
+  const all = await db.select().from(scannersTable);
+
+  // Always stop every running timer first
+  for (const s of all) {
+    unscheduleScanner(s.id);
+  }
+
+  // Update DB
+  await db.update(scannersTable).set({ isActive });
+
+  // If resuming, schedule all of them
+  if (isActive) {
+    for (const s of all) {
+      await scheduleScanner(s.id, s.intervalMinutes);
+    }
+  }
+
+  return all.length;
+}
+
 /** Seconds to wait between starting each scanner on boot to avoid burst requests */
 const BOOT_STAGGER_MS = 15_000;
 
