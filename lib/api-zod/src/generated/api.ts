@@ -183,6 +183,8 @@ export const GetStatsSummaryResponse = zod.object({
   alertsToday: zod.number(),
   lastScanAt: zod.string().nullable(),
   telegramEnabled: zod.boolean().optional(),
+  marketOpen: zod.boolean(),
+  marketStatusReason: zod.string().optional(),
 });
 
 /**

@@ -77,6 +77,8 @@ export interface StatsSummary {
   /** @nullable */
   lastScanAt: string | null;
   telegramEnabled?: boolean;
+  marketOpen: boolean;
+  marketStatusReason?: string;
 }
 
 export interface ScannerActivity {

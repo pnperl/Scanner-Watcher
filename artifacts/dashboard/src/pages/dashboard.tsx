@@ -135,11 +135,14 @@ export default function Dashboard() {
   }
 
   function handleToggleAll() {
-    toggleAllMutation.mutate({ isActive: allPaused }, { onSuccess: invalidateAll });
+    toggleAllMutation.mutate({ data: { isActive: allPaused } }, { onSuccess: invalidateAll });
   }
 
   const scanAllBusy = scanAllMutation.isPending || isScanning;
   const toggleAllBusy = toggleAllMutation.isPending || scannersLoading;
+
+  const marketOpen = stats?.marketOpen ?? null;
+  const marketReason = stats?.marketStatusReason ?? null;
 
   return (
     <div className="space-y-6">
@@ -151,8 +154,25 @@ export default function Dashboard() {
             <Badge variant="outline" className="rounded-none border-primary text-primary text-[10px] font-mono py-0">
               LIVE
             </Badge>
+            {marketOpen !== null && (
+              <Badge
+                variant="outline"
+                className={`rounded-none text-[10px] font-mono py-0 ${
+                  marketOpen
+                    ? "border-green-500/50 text-green-400"
+                    : "border-muted-foreground/30 text-muted-foreground"
+                }`}
+              >
+                {marketOpen ? "MARKET OPEN" : "MARKET CLOSED"}
+              </Badge>
+            )}
           </div>
-          <p className="text-muted-foreground text-xs font-mono uppercase tracking-wider">Real-time market scanner overview</p>
+          <p className="text-muted-foreground text-xs font-mono uppercase tracking-wider">
+            Real-time market scanner overview
+            {!marketOpen && marketReason && (
+              <span className="ml-2 text-muted-foreground/60">— {marketReason}</span>
+            )}
+          </p>
 
           <div className="flex items-center gap-2 mt-3">
             <Button

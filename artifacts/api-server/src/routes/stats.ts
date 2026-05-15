@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, count, desc, sql } from "drizzle-orm";
 import { db, scannersTable, alertsTable, scanLogsTable } from "@workspace/db";
 import { isTelegramEnabled } from "../lib/telegram";
+import { getMarketStatus } from "../lib/poller";
 
 const router: IRouter = Router();
 
@@ -35,6 +36,8 @@ router.get("/stats/summary", async (_req, res): Promise<void> => {
     .orderBy(desc(scannersTable.lastScannedAt))
     .limit(1);
 
+  const market = getMarketStatus();
+
   res.json({
     totalScanners: totals?.totalScanners ?? 0,
     activeScanners: activeRow?.activeScanners ?? 0,
@@ -42,6 +45,8 @@ router.get("/stats/summary", async (_req, res): Promise<void> => {
     alertsToday: alertsToday?.alertsToday ?? 0,
     lastScanAt: lastScan?.lastScannedAt?.toISOString() ?? null,
     telegramEnabled: isTelegramEnabled(),
+    marketOpen: market.open,
+    marketStatusReason: market.reason ?? null,
   });
 });
 

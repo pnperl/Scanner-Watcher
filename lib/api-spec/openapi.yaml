@@ -444,7 +444,7 @@ components:
 
     StatsSummary:
       type: object
-      required: [totalScanners, activeScanners, totalAlerts, alertsToday, lastScanAt]
+      required: [totalScanners, activeScanners, totalAlerts, alertsToday, lastScanAt, marketOpen]
       properties:
         totalScanners:
           type: integer
@@ -458,6 +458,10 @@ components:
           type: ["string", "null"]
         telegramEnabled:
           type: boolean
+        marketOpen:
+          type: boolean
+        marketStatusReason:
+          type: string
 
     ScannerActivity:
       type: object

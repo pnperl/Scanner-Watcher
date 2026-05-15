@@ -4,6 +4,49 @@ import { runChartinkScan } from "./chartink";
 import { sendTelegramAlert } from "./telegram";
 import { logger } from "./logger";
 
+// ---------------------------------------------------------------------------
+// Indian market hours: 9:15 AM – 3:30 PM IST, Monday–Friday
+// ---------------------------------------------------------------------------
+export function isWithinMarketHours(): boolean {
+  const now = new Date();
+  // Convert to IST (UTC+5:30)
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const ist = new Date(now.getTime() + istOffset);
+
+  const day = ist.getUTCDay(); // 0=Sun, 6=Sat
+  if (day === 0 || day === 6) return false;
+
+  const hours = ist.getUTCHours();
+  const minutes = ist.getUTCMinutes();
+  const totalMins = hours * 60 + minutes;
+
+  const marketOpen = 9 * 60 + 15;  // 9:15 AM
+  const marketClose = 15 * 60 + 30; // 3:30 PM
+
+  return totalMins >= marketOpen && totalMins <= marketClose;
+}
+
+export function getMarketStatus(): { open: boolean; reason?: string } {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const ist = new Date(now.getTime() + istOffset);
+
+  const day = ist.getUTCDay();
+  if (day === 0) return { open: false, reason: "Weekend (Sunday)" };
+  if (day === 6) return { open: false, reason: "Weekend (Saturday)" };
+
+  const hours = ist.getUTCHours();
+  const minutes = ist.getUTCMinutes();
+  const totalMins = hours * 60 + minutes;
+
+  const marketOpen = 9 * 60 + 15;
+  const marketClose = 15 * 60 + 30;
+
+  if (totalMins < marketOpen) return { open: false, reason: "Pre-market (opens 9:15 AM IST)" };
+  if (totalMins > marketClose) return { open: false, reason: "After-hours (closed at 3:30 PM IST)" };
+  return { open: true };
+}
+
 interface ScannerTimer {
   scannerId: number;
   intervalMs: number;
@@ -136,10 +179,15 @@ async function scheduleScanner(
   const firstDelay = intervalMs + initialDelayMs;
 
   const run = async () => {
-    try {
-      await runScanForScanner(scannerId);
-    } catch (err) {
-      logger.error({ err, scannerId }, "Scan failed");
+    const market = getMarketStatus();
+    if (!market.open) {
+      logger.info({ scannerId, reason: market.reason }, "Skipping scan — market closed");
+    } else {
+      try {
+        await runScanForScanner(scannerId);
+      } catch (err) {
+        logger.error({ err, scannerId }, "Scan failed");
+      }
     }
     const t = timers.get(scannerId);
     if (t) {
