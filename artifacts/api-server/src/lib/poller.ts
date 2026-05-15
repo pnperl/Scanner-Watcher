@@ -173,15 +173,20 @@ export function getNextScanAt(scannerId: number): string | null {
   return new Date(t.nextRunAt).toISOString();
 }
 
-/** Fire-and-forget: queue a scan for every currently-active scanner. */
-export function triggerAllScannersAsync(): number {
-  const ids = [...timers.keys()];
-  for (const id of ids) {
-    runScanForScanner(id).catch((err) => {
-      logger.error({ err, scannerId: id }, "scan-all scan failed");
+/** Fire-and-forget: queue a scan for every active scanner (reads from DB for reliability). */
+export async function triggerAllScannersAsync(): Promise<number> {
+  const activeScanners = await db
+    .select({ id: scannersTable.id })
+    .from(scannersTable)
+    .where(eq(scannersTable.isActive, true));
+
+  for (const s of activeScanners) {
+    runScanForScanner(s.id).catch((err) => {
+      logger.error({ err, scannerId: s.id }, "scan-all scan failed");
     });
   }
-  return ids.length;
+  logger.info({ count: activeScanners.length }, "Manual scan-all triggered");
+  return activeScanners.length;
 }
 
 /**

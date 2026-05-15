@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetStatsSummary, getGetStatsSummaryQueryKey,
@@ -16,29 +16,30 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, formatDistanceToNow } from "date-fns";
-import { TrendingUp, Bell, Activity, Clock, AlertTriangle, CheckCircle2, XCircle, Play, Pause, Zap, Loader2 } from "lucide-react";
+import { TrendingUp, Bell, Activity, Clock, CheckCircle2, XCircle, Play, Pause, Zap, Loader2 } from "lucide-react";
+
+const POLL_INTERVAL_MS = 3_000;   // poll every 3s while scan is in flight
+const POLL_DURATION_MS = 90_000;  // stop aggressive polling after 90s
 
 export default function Dashboard() {
   const [now, setNow] = useState(() => Date.now());
+  const [isScanning, setIsScanning] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queryClient = useQueryClient();
 
   const { data: stats, isLoading: statsLoading } = useGetStatsSummary({
     query: { queryKey: getGetStatsSummaryQueryKey(), refetchInterval: 30000 },
   });
-
   const { data: activity, isLoading: activityLoading } = useGetScannerActivity({
     query: { queryKey: getGetScannerActivityQueryKey(), refetchInterval: 30000 },
   });
-
   const { data: recentAlerts, isLoading: alertsLoading } = useGetRecentAlerts(
     { limit: 15 },
     { query: { queryKey: getGetRecentAlertsQueryKey({ limit: 15 }), refetchInterval: 30000 } },
   );
-
   const { data: scanners, isLoading: scannersLoading } = useListScanners({
     query: { queryKey: getListScannersQueryKey(), refetchInterval: 30000 },
   });
-
   const { data: scanTimeline, isLoading: timelineLoading } = useGetScanTimeline({
     query: { queryKey: getGetScanTimelineQueryKey(), refetchInterval: 30000 },
   });
@@ -46,12 +47,38 @@ export default function Dashboard() {
   const scanAllMutation = useScanAll();
   const toggleAllMutation = useToggleAll();
 
+  // 1-second ticker for countdown
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
   }, []);
 
-  // Use server-provided nextScanAt from scanner data (accurate — actual timer state)
+  // Rapid-poll all relevant queries while a manual scan is in flight
+  function startRapidPoll() {
+    setIsScanning(true);
+    if (pollRef.current) clearInterval(pollRef.current);
+
+    const deadline = Date.now() + POLL_DURATION_MS;
+    pollRef.current = setInterval(() => {
+      void queryClient.invalidateQueries({ queryKey: getGetScanTimelineQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getGetRecentAlertsQueryKey({ limit: 15 }) });
+      void queryClient.invalidateQueries({ queryKey: getListScannersQueryKey() });
+      if (Date.now() >= deadline) stopRapidPoll();
+    }, POLL_INTERVAL_MS);
+  }
+
+  function stopRapidPoll() {
+    setIsScanning(false);
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }
+
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  // Use server-provided nextScanAt (actual timer state — no client-side math)
   const nextScanInfo = useMemo(() => {
     if (!scanners) return null;
     const active = scanners.filter((s) => s.isActive && s.nextScanAt);
@@ -59,9 +86,7 @@ export default function Dashboard() {
     let soonest: { name: string; nextAt: number } | null = null;
     for (const s of active) {
       const nextAt = new Date(s.nextScanAt!).getTime();
-      if (!soonest || nextAt < soonest.nextAt) {
-        soonest = { name: s.name, nextAt };
-      }
+      if (!soonest || nextAt < soonest.nextAt) soonest = { name: s.name, nextAt };
     }
     return soonest;
   }, [scanners]);
@@ -79,49 +104,46 @@ export default function Dashboard() {
     if (!scanners) return "Loading...";
     const active = scanners.filter((s) => s.isActive);
     if (active.length === 0) return "All scanners paused";
+    if (isScanning) return "Scanning now...";
     if (!nextScanInfo) return "Queued...";
     const remaining = Math.max(0, nextScanInfo.nextAt - now);
     if (remaining === 0) return "Running scan...";
     return nextScanInfo.name;
-  }, [scanners, nextScanInfo, now]);
+  }, [scanners, nextScanInfo, now, isScanning]);
 
   const allPaused = useMemo(() => {
     if (!scanners || scanners.length === 0) return false;
     return scanners.every((s) => !s.isActive);
   }, [scanners]);
 
-  const hasActiveScanners = useMemo(() => {
-    return scanners?.some((s) => s.isActive) ?? false;
-  }, [scanners]);
+  const hasActiveScanners = useMemo(() => scanners?.some((s) => s.isActive) ?? false, [scanners]);
 
   function invalidateAll() {
     void queryClient.invalidateQueries({ queryKey: getListScannersQueryKey() });
     void queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
     void queryClient.invalidateQueries({ queryKey: getGetScanTimelineQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: getGetRecentAlertsQueryKey({ limit: 15 }) });
+    void queryClient.invalidateQueries({ queryKey: getGetScannerActivityQueryKey() });
   }
 
   function handleScanAll() {
     scanAllMutation.mutate(undefined, {
-      onSuccess: () => {
-        // Kick off a re-fetch after a short delay to catch results
-        setTimeout(invalidateAll, 8000);
+      onSuccess: (data) => {
+        if ((data?.triggered ?? 0) > 0) startRapidPoll();
       },
     });
   }
 
   function handleToggleAll() {
-    toggleAllMutation.mutate(
-      { isActive: allPaused },
-      { onSuccess: invalidateAll },
-    );
+    toggleAllMutation.mutate({ isActive: allPaused }, { onSuccess: invalidateAll });
   }
 
-  const scanAllBusy = scanAllMutation.isPending;
+  const scanAllBusy = scanAllMutation.isPending || isScanning;
   const toggleAllBusy = toggleAllMutation.isPending || scannersLoading;
 
   return (
     <div className="space-y-6">
-      {/* Header row */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-5 border-b border-[color:var(--terminal-border-soft)]">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -132,7 +154,6 @@ export default function Dashboard() {
           </div>
           <p className="text-muted-foreground text-xs font-mono uppercase tracking-wider">Real-time market scanner overview</p>
 
-          {/* Action buttons */}
           <div className="flex items-center gap-2 mt-3">
             <Button
               size="sm"
@@ -141,12 +162,8 @@ export default function Dashboard() {
               onClick={handleScanAll}
               disabled={scanAllBusy || !hasActiveScanners}
             >
-              {scanAllBusy ? (
-                <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
-              ) : (
-                <Zap className="h-3 w-3 mr-1.5" />
-              )}
-              {scanAllBusy ? "Queuing..." : "Scan Now"}
+              {scanAllBusy ? <Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> : <Zap className="h-3 w-3 mr-1.5" />}
+              {isScanning ? "Scanning..." : scanAllMutation.isPending ? "Queuing..." : "Scan Now"}
             </Button>
 
             <Button
@@ -175,61 +192,42 @@ export default function Dashboard() {
         <div className="flex flex-col items-end text-right font-mono shrink-0">
           <span className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Next Scan</span>
           <span className={`text-4xl font-bold leading-none tabular-nums ${
-            allPaused ? "text-muted-foreground/50" : "text-primary"
+            allPaused ? "text-muted-foreground/50" : isScanning ? "text-yellow-400" : "text-primary"
           }`}>
-            {allPaused ? "--:--" : nextScanCountdown}
+            {allPaused ? "--:--" : isScanning ? "NOW" : nextScanCountdown}
           </span>
           <span className="text-[10px] text-muted-foreground mt-1 max-w-[180px] truncate">{nextScanLabel}</span>
         </div>
       </div>
 
-      {/* Stats row */}
+      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard
-          label="Active Scanners"
-          icon={<Activity className="h-3.5 w-3.5" />}
-          loading={statsLoading}
-          value={
-            <span className="text-primary">
-              {stats?.activeScanners}
-              <span className="text-lg text-muted-foreground font-normal ml-1">/ {stats?.totalScanners}</span>
-            </span>
-          }
-        />
-        <StatCard
-          label="Alerts Today"
-          icon={<Bell className="h-3.5 w-3.5" />}
-          loading={statsLoading}
-          value={<span>{stats?.alertsToday ?? 0}</span>}
-        />
-        <StatCard
-          label="Total Alerts"
-          icon={<TrendingUp className="h-3.5 w-3.5" />}
-          loading={statsLoading}
-          value={<span>{stats?.totalAlerts ?? 0}</span>}
-        />
-        <StatCard
-          label="Last Scan"
-          icon={<Clock className="h-3.5 w-3.5" />}
-          loading={statsLoading}
-          value={
-            <span className="text-xl">
-              {stats?.lastScanAt ? format(new Date(stats.lastScanAt), "HH:mm:ss") : "Never"}
-            </span>
-          }
-        />
+        <StatCard label="Active Scanners" icon={<Activity className="h-3.5 w-3.5" />} loading={statsLoading}
+          value={<span className="text-primary">{stats?.activeScanners}<span className="text-lg text-muted-foreground font-normal ml-1">/ {stats?.totalScanners}</span></span>} />
+        <StatCard label="Alerts Today" icon={<Bell className="h-3.5 w-3.5" />} loading={statsLoading}
+          value={<span>{stats?.alertsToday ?? 0}</span>} />
+        <StatCard label="Total Alerts" icon={<TrendingUp className="h-3.5 w-3.5" />} loading={statsLoading}
+          value={<span>{stats?.totalAlerts ?? 0}</span>} />
+        <StatCard label="Last Scan" icon={<Clock className="h-3.5 w-3.5" />} loading={statsLoading}
+          value={<span className="text-xl">{stats?.lastScanAt ? format(new Date(stats.lastScanAt), "HH:mm:ss") : "Never"}</span>} />
       </div>
 
-      {/* Scanner Status — per-scanner live view */}
+      {/* Scanner Status */}
       <div>
-        <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-3">
-          Scanner Status — Current Stocks &amp; Scan History
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+            Scanner Status — Current Stocks &amp; Scan History
+          </span>
+          {isScanning && (
+            <span className="flex items-center gap-1 text-[10px] font-mono text-yellow-400 uppercase tracking-wider">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Scanning
+            </span>
+          )}
         </div>
         {timelineLoading ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <Skeleton key={i} className="h-52 w-full rounded-none" />
-            ))}
+            {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-52 w-full rounded-none" />)}
           </div>
         ) : !scanTimeline || scanTimeline.length === 0 ? (
           <div className="border border-dashed border-[color:var(--terminal-border-soft)] bg-[hsl(var(--terminal-panel))] py-10 text-center text-xs font-mono uppercase tracking-wider text-muted-foreground">
@@ -238,7 +236,7 @@ export default function Dashboard() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {scanTimeline.map((scanner) => (
-              <ScannerStatusCard key={scanner.scannerId} scanner={scanner} />
+              <ScannerStatusCard key={scanner.scannerId} scanner={scanner} isScanning={isScanning && scanner.isActive} />
             ))}
           </div>
         )}
@@ -258,36 +256,11 @@ export default function Dashboard() {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={activity} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                  <XAxis
-                    dataKey="scannerName"
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={10}
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fontFamily: "var(--app-font-mono)" }}
-                  />
-                  <YAxis
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={10}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(v) => String(v)}
-                    tick={{ fontFamily: "var(--app-font-mono)" }}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "rgba(255,255,255,0.04)" }}
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--terminal-panel))",
-                      border: "1px solid hsl(var(--terminal-border-soft))",
-                      borderRadius: 0,
-                      fontFamily: "var(--app-font-mono)",
-                      fontSize: 11,
-                    }}
-                  />
+                  <XAxis dataKey="scannerName" stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={false} tick={{ fontFamily: "var(--app-font-mono)" }} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => String(v)} tick={{ fontFamily: "var(--app-font-mono)" }} />
+                  <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} contentStyle={{ backgroundColor: "hsl(var(--terminal-panel))", border: "1px solid hsl(var(--terminal-border-soft))", borderRadius: 0, fontFamily: "var(--app-font-mono)", fontSize: 11 }} />
                   <Bar dataKey="alertCount" radius={[2, 2, 0, 0]}>
-                    {activity?.map((_, i) => (
-                      <Cell key={i} fill="hsl(var(--primary))" fillOpacity={0.85} />
-                    ))}
+                    {activity?.map((_, i) => <Cell key={i} fill="hsl(var(--primary))" fillOpacity={0.85} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -295,38 +268,22 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Recent signals */}
         <Card className="bg-[hsl(var(--terminal-panel))] border-[color:var(--terminal-border-soft)] rounded-none flex flex-col">
           <CardHeader className="pb-2 px-5 pt-4 shrink-0">
-            <CardTitle className="text-[10px] uppercase font-mono tracking-widest text-muted-foreground">
-              Recent Signals
-            </CardTitle>
+            <CardTitle className="text-[10px] uppercase font-mono tracking-widest text-muted-foreground">Recent Signals</CardTitle>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto px-4 pb-4">
             {alertsLoading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
-                ))}
-              </div>
+              <div className="space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
             ) : recentAlerts?.length === 0 ? (
-              <div className="text-center text-muted-foreground py-10 text-xs font-mono uppercase tracking-wider">
-                No signals yet
-              </div>
+              <div className="text-center text-muted-foreground py-10 text-xs font-mono uppercase tracking-wider">No signals yet</div>
             ) : (
               <div className="divide-y divide-[color:var(--terminal-border-soft)]">
                 {recentAlerts?.map((alert) => (
-                  <div
-                    key={alert.id}
-                    className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0"
-                  >
+                  <div key={alert.id} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
                     <div>
-                      <div className="font-bold font-mono text-sm tracking-tight text-foreground">
-                        {alert.symbol}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground truncate max-w-[110px]">
-                        {alert.scannerName}
-                      </div>
+                      <div className="font-bold font-mono text-sm tracking-tight text-foreground">{alert.symbol}</div>
+                      <div className="text-[10px] text-muted-foreground truncate max-w-[110px]">{alert.scannerName}</div>
                     </div>
                     <div className="text-right shrink-0">
                       <div className="font-mono text-sm text-green-400 font-semibold">
@@ -347,38 +304,42 @@ export default function Dashboard() {
   );
 }
 
-function ScannerStatusCard({ scanner }: { scanner: ScannerTimeline }) {
+function ScannerStatusCard({ scanner, isScanning }: { scanner: ScannerTimeline; isScanning: boolean }) {
   const latest = scanner.recentScans[0] ?? null;
   const hasError = !!latest?.error;
   const hasStocks = (latest?.stocksFound ?? 0) > 0;
 
   return (
     <div className={`bg-[hsl(var(--terminal-panel))] border flex flex-col ${
-      !scanner.isActive
-        ? "border-[color:var(--terminal-border-soft)] opacity-60"
-        : hasError
-        ? "border-red-500/30"
-        : hasStocks
-        ? "border-[color:var(--terminal-border-soft)] shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.08)]"
-        : "border-[color:var(--terminal-border-soft)]"
+      !scanner.isActive ? "border-[color:var(--terminal-border-soft)] opacity-60"
+      : isScanning ? "border-yellow-500/40"
+      : hasError ? "border-red-500/30"
+      : hasStocks ? "border-[color:var(--terminal-border-soft)] shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.08)]"
+      : "border-[color:var(--terminal-border-soft)]"
     }`}>
-      {/* Header */}
       <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-[color:var(--terminal-border-soft)]">
         <div className="flex items-center gap-2 min-w-0">
           <span className={`inline-flex h-1.5 w-1.5 rounded-full shrink-0 ${
-            !scanner.isActive ? "bg-muted-foreground/40" :
-            hasError ? "bg-red-500" :
-            hasStocks ? "bg-green-500" : "bg-yellow-500"
+            !scanner.isActive ? "bg-muted-foreground/40"
+            : isScanning ? "bg-yellow-400 animate-pulse"
+            : hasError ? "bg-red-500"
+            : hasStocks ? "bg-green-500"
+            : "bg-yellow-500"
           }`} />
           <span className="font-bold text-sm font-mono truncate">{scanner.scannerName}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {!scanner.isActive && (
+          {isScanning && (
+            <Badge variant="outline" className="rounded-none text-[9px] font-mono px-1.5 py-0 border-yellow-500/40 text-yellow-400 animate-pulse">
+              SCANNING
+            </Badge>
+          )}
+          {!scanner.isActive && !isScanning && (
             <Badge variant="outline" className="rounded-none text-[9px] font-mono px-1.5 py-0 border-muted-foreground/30 text-muted-foreground">
               PAUSED
             </Badge>
           )}
-          {latest && (
+          {latest && !isScanning && (
             <span className="text-[10px] font-mono text-muted-foreground/70">
               {formatDistanceToNow(new Date(latest.scannedAt), { addSuffix: true })}
             </span>
@@ -386,12 +347,14 @@ function ScannerStatusCard({ scanner }: { scanner: ScannerTimeline }) {
         </div>
       </div>
 
-      {/* Status + latest stocks */}
       <div className="px-4 py-3 flex-1">
-        {!latest ? (
-          <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider py-2">
-            No scans yet
+        {isScanning ? (
+          <div className="flex items-center gap-2 text-xs font-mono text-yellow-400">
+            <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+            Contacting Chartink — results will appear shortly
           </div>
+        ) : !latest ? (
+          <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider py-2">No scans yet</div>
         ) : hasError ? (
           <div className="flex items-start gap-2">
             <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />
@@ -421,10 +384,7 @@ function ScannerStatusCard({ scanner }: { scanner: ScannerTimeline }) {
             </div>
             <div className="flex flex-wrap gap-1">
               {latest.symbols.slice(0, 20).map((sym) => (
-                <span
-                  key={sym}
-                  className="inline-block px-1.5 py-0.5 bg-[hsl(var(--terminal-panel-strong))] border border-[color:var(--terminal-border-soft)] text-[10px] font-mono text-foreground"
-                >
+                <span key={sym} className="inline-block px-1.5 py-0.5 bg-[hsl(var(--terminal-panel-strong))] border border-[color:var(--terminal-border-soft)] text-[10px] font-mono text-foreground">
                   {sym}
                 </span>
               ))}
@@ -438,7 +398,6 @@ function ScannerStatusCard({ scanner }: { scanner: ScannerTimeline }) {
         )}
       </div>
 
-      {/* Mini timeline — last 8 scans as bar indicators */}
       {scanner.recentScans.length > 0 && (
         <div className="px-4 pb-3 border-t border-[color:var(--terminal-border-soft)] pt-2">
           <div className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground/60 mb-1.5">
@@ -461,66 +420,33 @@ function ScanBar({ scan, index, total }: { scan: ScanLogEntry; index: number; to
   const isEmpty = scan.stocksFound === 0 && !hasError;
   const hasNew = scan.newAlerts > 0;
 
-  const barColor = hasError
-    ? "bg-red-500"
-    : isEmpty
-    ? "bg-muted-foreground/30"
-    : hasNew
-    ? "bg-primary"
-    : "bg-green-500/60";
-
+  const barColor = hasError ? "bg-red-500" : isEmpty ? "bg-muted-foreground/30" : hasNew ? "bg-primary" : "bg-green-500/60";
   const maxStocks = 10;
-  const heightPct = hasError
-    ? 100
-    : isEmpty
-    ? 20
-    : Math.min(100, Math.max(20, (scan.stocksFound / maxStocks) * 100));
+  const heightPct = hasError ? 100 : isEmpty ? 20 : Math.min(100, Math.max(20, (scan.stocksFound / maxStocks) * 100));
 
   return (
     <div
       className="flex flex-col items-center gap-0.5 flex-1 group relative"
-      title={`${format(new Date(scan.scannedAt), "HH:mm")} — ${
-        hasError ? scan.error : `${scan.stocksFound} stocks, ${scan.newAlerts} new`
-      }`}
+      title={`${format(new Date(scan.scannedAt), "HH:mm")} — ${hasError ? scan.error : `${scan.stocksFound} stocks, ${scan.newAlerts} new`}`}
     >
       <div className="w-full flex items-end justify-center h-7">
-        <div
-          className={`w-full rounded-none transition-opacity ${barColor} ${isLatest ? "opacity-100" : "opacity-60"}`}
-          style={{ height: `${heightPct}%` }}
-        />
+        <div className={`w-full rounded-none transition-opacity ${barColor} ${isLatest ? "opacity-100" : "opacity-60"}`} style={{ height: `${heightPct}%` }} />
       </div>
-      {isLatest && (
-        <div className="w-1 h-1 rounded-full bg-primary" />
-      )}
+      {isLatest && <div className="w-1 h-1 rounded-full bg-primary" />}
     </div>
   );
 }
 
-function StatCard({
-  label,
-  icon,
-  loading,
-  value,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  loading: boolean;
-  value: React.ReactNode;
-}) {
+function StatCard({ label, icon, loading, value }: { label: string; icon: React.ReactNode; loading: boolean; value: React.ReactNode }) {
   return (
     <Card className="bg-[hsl(var(--terminal-panel))] border-[color:var(--terminal-border-soft)] rounded-none">
       <CardHeader className="pb-1 px-4 pt-4">
         <CardTitle className="flex items-center gap-1.5 text-[10px] uppercase font-mono tracking-widest text-muted-foreground">
-          {icon}
-          {label}
+          {icon}{label}
         </CardTitle>
       </CardHeader>
       <CardContent className="px-4 pb-4">
-        {loading ? (
-          <Skeleton className="h-8 w-20" />
-        ) : (
-          <div className="text-3xl font-bold font-mono leading-none">{value}</div>
-        )}
+        {loading ? <Skeleton className="h-8 w-20" /> : <div className="text-3xl font-bold font-mono leading-none">{value}</div>}
       </CardContent>
     </Card>
   );

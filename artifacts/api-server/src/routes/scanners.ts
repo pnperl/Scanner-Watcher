@@ -72,7 +72,7 @@ router.get("/scanners", async (_req, res): Promise<void> => {
 
 // Static bulk routes — must appear before /:id dynamic routes
 router.post("/scanners/scan-all", async (_req, res): Promise<void> => {
-  const triggered = triggerAllScannersAsync();
+  const triggered = await triggerAllScannersAsync();
   res.status(202).json({ triggered });
 });
 

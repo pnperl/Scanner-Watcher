@@ -1,13 +1,62 @@
+import { db, configTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { logger } from "./logger";
 
-export let TELEGRAM_BOT_TOKEN = process.env["TELEGRAM_BOT_TOKEN"];
-export let TELEGRAM_CHAT_ID = process.env["TELEGRAM_CHAT_ID"];
+let TELEGRAM_BOT_TOKEN = process.env["TELEGRAM_BOT_TOKEN"] ?? "";
+let TELEGRAM_CHAT_ID = process.env["TELEGRAM_CHAT_ID"] ?? "";
 
-const TELEGRAM_MAX_CHARS = 4000; // Telegram limit is 4096; leave headroom for header/footer
+const TELEGRAM_MAX_CHARS = 4000;
 
-export function setTelegramConfig(botToken: string, chatId: string): void {
+// ---------------------------------------------------------------------------
+// Persistence — load from DB on boot, save to DB on update
+// ---------------------------------------------------------------------------
+
+export async function loadTelegramConfigFromDb(): Promise<void> {
+  try {
+    const rows = await db
+      .select()
+      .from(configTable)
+      .where(eq(configTable.key, "telegram_bot_token"));
+    const chatRows = await db
+      .select()
+      .from(configTable)
+      .where(eq(configTable.key, "telegram_chat_id"));
+
+    const dbToken = rows[0]?.value;
+    const dbChatId = chatRows[0]?.value;
+
+    // DB values override env vars (env vars are the bootstrap fallback)
+    if (dbToken) TELEGRAM_BOT_TOKEN = dbToken;
+    if (dbChatId) TELEGRAM_CHAT_ID = dbChatId;
+
+    logger.info(
+      {
+        source: dbToken ? "database" : "env",
+        configured: !!(TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID),
+      },
+      "Telegram config loaded",
+    );
+  } catch (err) {
+    logger.warn({ err }, "Failed to load Telegram config from DB — using env vars");
+  }
+}
+
+export async function setTelegramConfig(botToken: string, chatId: string): Promise<void> {
   TELEGRAM_BOT_TOKEN = botToken;
   TELEGRAM_CHAT_ID = chatId;
+
+  // Persist to DB so credentials survive server restarts
+  await db
+    .insert(configTable)
+    .values({ key: "telegram_bot_token", value: botToken })
+    .onConflictDoUpdate({ target: configTable.key, set: { value: botToken, updatedAt: new Date() } });
+
+  await db
+    .insert(configTable)
+    .values({ key: "telegram_chat_id", value: chatId })
+    .onConflictDoUpdate({ target: configTable.key, set: { value: chatId, updatedAt: new Date() } });
+
+  logger.info("Telegram config saved to database");
 }
 
 export function isTelegramEnabled(): boolean {
@@ -23,6 +72,10 @@ export function getTelegramConfig() {
     enabled: isTelegramEnabled(),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Sending
+// ---------------------------------------------------------------------------
 
 async function sendRawMessage(text: string): Promise<boolean> {
   if (!isTelegramEnabled()) return false;
@@ -72,14 +125,13 @@ export async function sendTelegramAlert(
       : `• ${escapeMarkdown(sym)}`;
   });
 
-  // Split into chunks that fit within Telegram's message size limit
   const chunks: string[][] = [];
   let current: string[] = [];
   let currentLen = 0;
 
   const header = `🔔 *${escapedName}*\n${symbols.length} stock${symbols.length !== 1 ? "s" : ""} matched:\n`;
   const footer = `\n_${escapedTimestamp} IST_`;
-  const overhead = header.length + footer.length + 10; // buffer
+  const overhead = header.length + footer.length + 10;
 
   for (const line of lines) {
     if (currentLen + line.length + 1 + overhead > TELEGRAM_MAX_CHARS && current.length > 0) {
@@ -105,7 +157,6 @@ export async function sendTelegramAlert(
     const ok = await sendRawMessage(message);
     if (!ok) allOk = false;
 
-    // Small delay between chunks to avoid hitting Telegram rate limits
     if (i < chunks.length - 1) {
       await new Promise((r) => setTimeout(r, 500));
     }

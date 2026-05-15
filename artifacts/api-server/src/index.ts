@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startPoller } from "./lib/poller";
+import { loadTelegramConfigFromDb } from "./lib/telegram";
 
 const rawPort = process.env["PORT"];
 
@@ -23,6 +24,12 @@ app.listen(port, async (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  try {
+    await loadTelegramConfigFromDb();
+  } catch (err) {
+    logger.error({ err }, "Failed to load Telegram config from DB");
+  }
 
   try {
     await startPoller();

@@ -16,7 +16,7 @@ router.patch("/config/telegram", async (req, res): Promise<void> => {
     return;
   }
 
-  setTelegramConfig(botToken, chatId);
+  await setTelegramConfig(botToken, chatId);
   res.json(getTelegramConfig());
 });
 
