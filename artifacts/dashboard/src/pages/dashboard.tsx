@@ -276,7 +276,7 @@ export default function Dashboard() {
                             className="w-7 h-7 border border-[color:var(--terminal-border-soft)] flex items-center justify-center cursor-default"
                             style={{ backgroundColor: count === 0 ? undefined : `hsl(var(--primary) / ${opacity})` }}
                             title={`${name} @ ${h}:00–${h + 1}:00 IST — ${count} alerts`}>
-                            <span className="text-[9px] font-mono font-bold bg-[#00000080]" style={{ color: count === 0 ? "hsl(var(--muted-foreground)/0.3)" : `hsl(var(--primary))` }}>
+                            <span className="text-[9px] font-mono font-bold bg-[#00000080] text-[#ffffff]" style={{ color: count === 0 ? "hsl(var(--muted-foreground)/0.3)" : `hsl(var(--primary))` }}>
                               {count > 0 ? count : ""}
                             </span>
                           </div>
