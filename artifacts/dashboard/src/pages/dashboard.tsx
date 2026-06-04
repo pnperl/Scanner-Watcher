@@ -200,7 +200,6 @@ export default function Dashboard() {
           <span className="text-[10px] text-muted-foreground mt-1 max-w-[180px] truncate">{nextScanLabel}</span>
         </div>
       </div>
-
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="Active Scanners" icon={<Activity className="h-3.5 w-3.5" />} loading={statsLoading}
@@ -210,7 +209,6 @@ export default function Dashboard() {
         <StatCard label="Last Scan" icon={<Clock className="h-3.5 w-3.5" />} loading={statsLoading}
           value={<span className="text-xl">{stats?.lastScanAt ? format(new Date(stats.lastScanAt), "HH:mm:ss") : "Never"}</span>} />
       </div>
-
       {/* Live Scanner Status — active only */}
       <div>
         <div className="flex items-center gap-3 mb-3">
@@ -239,7 +237,6 @@ export default function Dashboard() {
           </div>
         )}
       </div>
-
       {/* Hourly Activity + Co-occurrence + Recent Signals */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
@@ -279,7 +276,7 @@ export default function Dashboard() {
                             className="w-7 h-7 border border-[color:var(--terminal-border-soft)] flex items-center justify-center cursor-default"
                             style={{ backgroundColor: count === 0 ? undefined : `hsl(var(--primary) / ${opacity})` }}
                             title={`${name} @ ${h}:00–${h + 1}:00 IST — ${count} alerts`}>
-                            <span className="text-[9px] font-mono font-bold" style={{ color: count === 0 ? "hsl(var(--muted-foreground)/0.3)" : `hsl(var(--primary))` }}>
+                            <span className="text-[9px] font-mono font-bold bg-[#00000080]" style={{ color: count === 0 ? "hsl(var(--muted-foreground)/0.3)" : `hsl(var(--primary))` }}>
                               {count > 0 ? count : ""}
                             </span>
                           </div>
@@ -331,7 +328,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
-
       {/* Co-occurrence heatmap */}
       {(coLoading || (coOccurrence && coOccurrence.length > 0)) && (
         <Card className="bg-[hsl(var(--terminal-panel))] border-[color:var(--terminal-border-soft)] rounded-none">
