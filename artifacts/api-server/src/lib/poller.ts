@@ -60,7 +60,10 @@ export async function runScanForScanner(scannerId: number): Promise<{
   stocksFound: number;
   newAlerts: number;
   scannerName: string;
+  durationMs: number;
 }> {
+  const startTime = Date.now();
+
   const [scanner] = await db
     .select()
     .from(scannersTable)
@@ -75,20 +78,21 @@ export async function runScanForScanner(scannerId: number): Promise<{
   const result = await runChartinkScan(scanner.chartinkUrl);
 
   if (result.error) {
-    logger.warn({ scannerId, error: result.error }, "Scan error");
-    // Write error log
+    const durationMs = Date.now() - startTime;
+    logger.warn({ scannerId, error: result.error, durationMs }, "Scan error");
     await db.insert(scanLogsTable).values({
       scannerId,
       stocksFound: 0,
       newAlerts: 0,
       symbols: [],
       error: result.error,
+      durationMs,
     });
     await db
       .update(scannersTable)
       .set({ lastScannedAt: new Date() })
       .where(eq(scannersTable.id, scannerId));
-    return { stocksFound: 0, newAlerts: 0, scannerName: scanner.name };
+    return { stocksFound: 0, newAlerts: 0, scannerName: scanner.name, durationMs };
   }
 
   const stocks = result.stocks;
@@ -105,15 +109,16 @@ export async function runScanForScanner(scannerId: number): Promise<{
   }
 
   if (symbols.length === 0) {
-    // Write empty scan log
+    const durationMs = Date.now() - startTime;
     await db.insert(scanLogsTable).values({
       scannerId,
       stocksFound: 0,
       newAlerts: 0,
       symbols: [],
       error: null,
+      durationMs,
     });
-    return { stocksFound: stocks.length, newAlerts: 0, scannerName: scanner.name };
+    return { stocksFound: stocks.length, newAlerts: 0, scannerName: scanner.name, durationMs };
   }
 
   const today = new Date();
@@ -137,31 +142,32 @@ export async function runScanForScanner(scannerId: number): Promise<{
 
   if (newSymbols.length > 0) {
     telegramSent = await sendTelegramAlert(scanner.name, newSymbols, prices);
-
     const rows = newSymbols.map((sym) => ({
       scannerId,
       symbol: sym,
       price: prices[sym] ?? null,
       telegramSent,
     }));
-
     await db.insert(alertsTable).values(rows);
     newAlerts = newSymbols.length;
-    logger.info({ scannerId, newAlerts, telegramSent }, "Scan complete");
   } else {
     logger.info({ scannerId, total: symbols.length }, "All symbols already alerted today");
   }
 
-  // Write scan log with ALL found symbols (not just new ones)
+  const durationMs = Date.now() - startTime;
+
+  logger.info({ scannerId, newAlerts, telegramSent, durationMs }, "Scan complete");
+
   await db.insert(scanLogsTable).values({
     scannerId,
     stocksFound: stocks.length,
     newAlerts,
     symbols,
     error: null,
+    durationMs,
   });
 
-  return { stocksFound: stocks.length, newAlerts, scannerName: scanner.name };
+  return { stocksFound: stocks.length, newAlerts, scannerName: scanner.name, durationMs };
 }
 
 async function scheduleScanner(

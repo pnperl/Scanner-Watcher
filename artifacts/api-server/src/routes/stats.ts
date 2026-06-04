@@ -132,4 +132,100 @@ router.get("/stats/scan-timeline", async (_req, res): Promise<void> => {
   res.json(timeline);
 });
 
+router.get("/stats/cooccurrence", async (_req, res): Promise<void> => {
+  // Find symbols that appeared in alerts for 2+ different scanners on the same calendar day
+  const rows = await db
+    .select({
+      symbol: alertsTable.symbol,
+      scannerName: scannersTable.name,
+      date: sql<string>`DATE(${alertsTable.triggeredAt} AT TIME ZONE 'Asia/Kolkata')`,
+    })
+    .from(alertsTable)
+    .innerJoin(scannersTable, eq(scannersTable.id, alertsTable.scannerId))
+    .orderBy(desc(alertsTable.triggeredAt));
+
+  // Group by (date, symbol) → set of scanners
+  const map = new Map<string, { symbol: string; scanners: Set<string> }>();
+  for (const row of rows) {
+    const key = `${row.date}::${row.symbol}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.scanners.add(row.scannerName);
+    } else {
+      map.set(key, { symbol: row.symbol, scanners: new Set([row.scannerName]) });
+    }
+  }
+
+  // Keep only symbols that appeared in 2+ scanners
+  const result: { symbol: string; scanners: string[]; count: number }[] = [];
+  const symbolMap = new Map<string, { scanners: Set<string>; count: number }>();
+  for (const entry of map.values()) {
+    if (entry.scanners.size >= 2) {
+      const existing = symbolMap.get(entry.symbol);
+      if (existing) {
+        for (const s of entry.scanners) existing.scanners.add(s);
+        existing.count++;
+      } else {
+        symbolMap.set(entry.symbol, { scanners: new Set(entry.scanners), count: 1 });
+      }
+    }
+  }
+  for (const [symbol, data] of symbolMap) {
+    result.push({ symbol, scanners: [...data.scanners], count: data.count });
+  }
+  result.sort((a, b) => b.count - a.count);
+
+  res.json(result.slice(0, 30));
+});
+
+router.get("/stats/scan-calendar", async (_req, res): Promise<void> => {
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const scanRows = await db
+    .select({
+      date: sql<string>`DATE(${scanLogsTable.scannedAt} AT TIME ZONE 'Asia/Kolkata')`,
+      scanCount: count(scanLogsTable.id),
+      alertCount: sql<number>`SUM(${scanLogsTable.newAlerts})`,
+    })
+    .from(scanLogsTable)
+    .where(sql`${scanLogsTable.scannedAt} >= ${thirtyDaysAgo.toISOString()}`)
+    .groupBy(sql`DATE(${scanLogsTable.scannedAt} AT TIME ZONE 'Asia/Kolkata')`)
+    .orderBy(sql`DATE(${scanLogsTable.scannedAt} AT TIME ZONE 'Asia/Kolkata')`);
+
+  res.json(
+    scanRows.map((r) => ({
+      date: r.date,
+      scanCount: Number(r.scanCount),
+      alertCount: Number(r.alertCount ?? 0),
+    }))
+  );
+});
+
+router.get("/stats/hourly-activity", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      hour: sql<number>`EXTRACT(HOUR FROM ${alertsTable.triggeredAt} AT TIME ZONE 'Asia/Kolkata')::integer`,
+      scannerName: scannersTable.name,
+      alertCount: count(alertsTable.id),
+    })
+    .from(alertsTable)
+    .innerJoin(scannersTable, eq(scannersTable.id, alertsTable.scannerId))
+    .groupBy(
+      sql`EXTRACT(HOUR FROM ${alertsTable.triggeredAt} AT TIME ZONE 'Asia/Kolkata')`,
+      scannersTable.name,
+    )
+    .orderBy(
+      sql`EXTRACT(HOUR FROM ${alertsTable.triggeredAt} AT TIME ZONE 'Asia/Kolkata')`,
+    );
+
+  res.json(
+    rows.map((r) => ({
+      hour: r.hour,
+      scannerName: r.scannerName,
+      alertCount: Number(r.alertCount),
+    }))
+  );
+});
+
 export default router;

@@ -7,10 +7,13 @@
  */
 
 export * from "./alert";
+export * from "./coOccurrenceEntry";
 export * from "./getRecentAlertsParams";
 export * from "./healthStatus";
+export * from "./hourlyActivity";
 export * from "./listAlertsParams";
 export * from "./scanAllResult";
+export * from "./scanCalendarDay";
 export * from "./scanLogEntry";
 export * from "./scanner";
 export * from "./scannerActivity";

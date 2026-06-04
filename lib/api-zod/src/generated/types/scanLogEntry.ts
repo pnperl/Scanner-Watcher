@@ -14,4 +14,6 @@ export interface ScanLogEntry {
   symbols: string[];
   /** @nullable */
   error?: string | null;
+  /** @nullable */
+  durationMs?: number | null;
 }

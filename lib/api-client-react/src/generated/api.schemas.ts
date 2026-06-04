@@ -117,6 +117,26 @@ export interface ScanLogEntry {
   symbols: string[];
   /** @nullable */
   error?: string | null;
+  /** @nullable */
+  durationMs?: number | null;
+}
+
+export interface CoOccurrenceEntry {
+  symbol: string;
+  scanners: string[];
+  count: number;
+}
+
+export interface ScanCalendarDay {
+  date: string;
+  scanCount: number;
+  alertCount: number;
+}
+
+export interface HourlyActivity {
+  hour: number;
+  scannerName: string;
+  alertCount: number;
 }
 
 export interface ScannerTimeline {

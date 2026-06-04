@@ -9,6 +9,7 @@ export const scanLogsTable = pgTable("scan_logs", {
   newAlerts: integer("new_alerts").notNull().default(0),
   symbols: text("symbols").array().notNull().default([]),
   error: text("error"),
+  durationMs: integer("duration_ms"),
 });
 
 export type ScanLog = typeof scanLogsTable.$inferSelect;

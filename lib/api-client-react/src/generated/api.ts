@@ -18,10 +18,13 @@ import type {
 
 import type {
   Alert,
+  CoOccurrenceEntry,
   GetRecentAlertsParams,
   HealthStatus,
+  HourlyActivity,
   ListAlertsParams,
   ScanAllResult,
+  ScanCalendarDay,
   ScanResult,
   Scanner,
   ScannerActivity,
@@ -1281,6 +1284,231 @@ export function useGetScanTimeline<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetScanTimelineQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get symbols that appear in multiple scanners on the same day
+ */
+export const getGetCoOccurrenceUrl = () => {
+  return `/api/stats/cooccurrence`;
+};
+
+export const getCoOccurrence = async (
+  options?: RequestInit,
+): Promise<CoOccurrenceEntry[]> => {
+  return customFetch<CoOccurrenceEntry[]>(getGetCoOccurrenceUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCoOccurrenceQueryKey = () => {
+  return [`/api/stats/cooccurrence`] as const;
+};
+
+export const getGetCoOccurrenceQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCoOccurrence>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCoOccurrence>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCoOccurrenceQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCoOccurrence>>> = ({
+    signal,
+  }) => getCoOccurrence({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCoOccurrence>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCoOccurrenceQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCoOccurrence>>
+>;
+export type GetCoOccurrenceQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get symbols that appear in multiple scanners on the same day
+ */
+
+export function useGetCoOccurrence<
+  TData = Awaited<ReturnType<typeof getCoOccurrence>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCoOccurrence>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCoOccurrenceQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get daily scan and alert counts for last 30 days
+ */
+export const getGetScanCalendarUrl = () => {
+  return `/api/stats/scan-calendar`;
+};
+
+export const getScanCalendar = async (
+  options?: RequestInit,
+): Promise<ScanCalendarDay[]> => {
+  return customFetch<ScanCalendarDay[]>(getGetScanCalendarUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetScanCalendarQueryKey = () => {
+  return [`/api/stats/scan-calendar`] as const;
+};
+
+export const getGetScanCalendarQueryOptions = <
+  TData = Awaited<ReturnType<typeof getScanCalendar>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getScanCalendar>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetScanCalendarQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getScanCalendar>>> = ({
+    signal,
+  }) => getScanCalendar({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getScanCalendar>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetScanCalendarQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getScanCalendar>>
+>;
+export type GetScanCalendarQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get daily scan and alert counts for last 30 days
+ */
+
+export function useGetScanCalendar<
+  TData = Awaited<ReturnType<typeof getScanCalendar>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getScanCalendar>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetScanCalendarQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get alert counts by hour of day per scanner
+ */
+export const getGetHourlyActivityUrl = () => {
+  return `/api/stats/hourly-activity`;
+};
+
+export const getHourlyActivity = async (
+  options?: RequestInit,
+): Promise<HourlyActivity[]> => {
+  return customFetch<HourlyActivity[]>(getGetHourlyActivityUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetHourlyActivityQueryKey = () => {
+  return [`/api/stats/hourly-activity`] as const;
+};
+
+export const getGetHourlyActivityQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHourlyActivity>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getHourlyActivity>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetHourlyActivityQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getHourlyActivity>>
+  > = ({ signal }) => getHourlyActivity({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHourlyActivity>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHourlyActivityQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHourlyActivity>>
+>;
+export type GetHourlyActivityQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get alert counts by hour of day per scanner
+ */
+
+export function useGetHourlyActivity<
+  TData = Awaited<ReturnType<typeof getHourlyActivity>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getHourlyActivity>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHourlyActivityQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

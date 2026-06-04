@@ -234,10 +234,43 @@ export const GetScanTimelineResponseItem = zod.object({
       newAlerts: zod.number(),
       symbols: zod.array(zod.string()),
       error: zod.string().nullish(),
+      durationMs: zod.number().nullish(),
     }),
   ),
 });
 export const GetScanTimelineResponse = zod.array(GetScanTimelineResponseItem);
+
+/**
+ * @summary Get symbols that appear in multiple scanners on the same day
+ */
+export const GetCoOccurrenceResponseItem = zod.object({
+  symbol: zod.string(),
+  scanners: zod.array(zod.string()),
+  count: zod.number(),
+});
+export const GetCoOccurrenceResponse = zod.array(GetCoOccurrenceResponseItem);
+
+/**
+ * @summary Get daily scan and alert counts for last 30 days
+ */
+export const GetScanCalendarResponseItem = zod.object({
+  date: zod.string(),
+  scanCount: zod.number(),
+  alertCount: zod.number(),
+});
+export const GetScanCalendarResponse = zod.array(GetScanCalendarResponseItem);
+
+/**
+ * @summary Get alert counts by hour of day per scanner
+ */
+export const GetHourlyActivityResponseItem = zod.object({
+  hour: zod.number(),
+  scannerName: zod.string(),
+  alertCount: zod.number(),
+});
+export const GetHourlyActivityResponse = zod.array(
+  GetHourlyActivityResponseItem,
+);
 
 /**
  * @summary Get Telegram configuration status

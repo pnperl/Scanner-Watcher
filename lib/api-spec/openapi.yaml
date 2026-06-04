@@ -288,6 +288,51 @@ paths:
                 items:
                   $ref: "#/components/schemas/ScannerTimeline"
 
+  /stats/cooccurrence:
+    get:
+      operationId: getCoOccurrence
+      tags: [stats]
+      summary: Get symbols that appear in multiple scanners on the same day
+      responses:
+        "200":
+          description: Co-occurrence data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CoOccurrenceEntry"
+
+  /stats/scan-calendar:
+    get:
+      operationId: getScanCalendar
+      tags: [stats]
+      summary: Get daily scan and alert counts for last 30 days
+      responses:
+        "200":
+          description: Daily scan calendar
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScanCalendarDay"
+
+  /stats/hourly-activity:
+    get:
+      operationId: getHourlyActivity
+      tags: [stats]
+      summary: Get alert counts by hour of day per scanner
+      responses:
+        "200":
+          description: Hourly alert breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HourlyActivity"
+
   /config/telegram:
     get:
       operationId: getTelegramConfig
@@ -527,6 +572,43 @@ components:
             type: string
         error:
           type: ["string", "null"]
+        durationMs:
+          type: ["integer", "null"]
+
+    CoOccurrenceEntry:
+      type: object
+      required: [symbol, scanners, count]
+      properties:
+        symbol:
+          type: string
+        scanners:
+          type: array
+          items:
+            type: string
+        count:
+          type: integer
+
+    ScanCalendarDay:
+      type: object
+      required: [date, scanCount, alertCount]
+      properties:
+        date:
+          type: string
+        scanCount:
+          type: integer
+        alertCount:
+          type: integer
+
+    HourlyActivity:
+      type: object
+      required: [hour, scannerName, alertCount]
+      properties:
+        hour:
+          type: integer
+        scannerName:
+          type: string
+        alertCount:
+          type: integer
 
     ScannerTimeline:
       type: object

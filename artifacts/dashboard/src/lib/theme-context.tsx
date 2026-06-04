@@ -5,6 +5,7 @@ export const themeOptions = [
   { value: "theme-emerald", label: "Emerald" },
   { value: "theme-amber", label: "Amber" },
   { value: "theme-cobalt", label: "Cobalt" },
+  { value: "theme-light", label: "Light" },
 ] as const;
 
 export type Theme = typeof themeOptions[number]["value"];
@@ -13,12 +14,14 @@ function applyTheme(theme: Theme) {
   const root = document.documentElement;
   root.classList.remove(...themeOptions.map((o) => o.value));
   root.classList.add(theme);
+  root.style.colorScheme = theme === "theme-light" ? "light" : "dark";
 }
 
 interface ThemeContextValue {
   theme: Theme;
   setTheme: (t: Theme) => void;
   themeLabel: string;
+  isLight: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -37,7 +40,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const themeLabel = themeOptions.find((o) => o.value === theme)?.label ?? "Bloomberg";
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme: setThemeState, themeLabel }}>
+    <ThemeContext.Provider value={{ theme, setTheme: setThemeState, themeLabel, isLight: theme === "theme-light" }}>
       {children}
     </ThemeContext.Provider>
   );
