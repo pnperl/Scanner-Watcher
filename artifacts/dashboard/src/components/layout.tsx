@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Activity, Bell, Scan, LayoutDashboard, Settings, MonitorDot } from "lucide-react";
+import { Activity, Bell, Scan, LayoutDashboard, Settings, MonitorDot, TrendingUp } from "lucide-react";
 import { useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
 import { useTheme } from "@/lib/theme-context";
 
@@ -59,6 +59,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 py-2">
           {navItem("/", location === "/", <LayoutDashboard className="h-4 w-4" />, "Dashboard")}
           {navItem("/scanners", location.startsWith("/scanners"), <Scan className="h-4 w-4" />, "Scanners")}
+          {navItem("/strategies", location.startsWith("/strategies"), <TrendingUp className="h-4 w-4" />, "Breakout")}
           {navItem("/alerts", location.startsWith("/alerts"), <Bell className="h-4 w-4" />, "Alerts")}
           {navItem("/config", location.startsWith("/config"), <Settings className="h-4 w-4" />, "Config")}
         </nav>

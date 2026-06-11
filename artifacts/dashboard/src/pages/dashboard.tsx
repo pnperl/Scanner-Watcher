@@ -256,9 +256,9 @@ export default function Dashboard() {
               <div className="overflow-x-auto">
                 <div className="min-w-max">
                   {/* Hour labels */}
-                  <div className="flex items-center gap-1 mb-1 ml-28">
+                  <div className="flex items-center gap-1 mb-1 ml-32">
                     {MARKET_HOURS.map((h) => (
-                      <div key={h} className="w-7 text-[9px] font-mono text-muted-foreground/60 text-center">
+                      <div key={h} className="w-9 text-[10px] font-mono text-muted-foreground/50 text-center">
                         {h.toString().padStart(2, "0")}
                       </div>
                     ))}
@@ -266,28 +266,28 @@ export default function Dashboard() {
                   {/* Scanner rows */}
                   {scannerNames.map((name) => (
                     <div key={name} className="flex items-center gap-1 mb-1">
-                      <div className="w-28 text-[10px] font-mono text-muted-foreground truncate pr-2 text-right shrink-0">{name}</div>
+                      <div className="w-32 text-[10px] font-mono text-muted-foreground truncate pr-2 text-right shrink-0">{name}</div>
                       {MARKET_HOURS.map((h) => {
                         const count = hourlyGrid.get(`${h}-${name}`) ?? 0;
                         const intensity = hourlyMax > 0 ? count / hourlyMax : 0;
-                        const opacity = count === 0 ? 0.06 : 0.15 + intensity * 0.85;
+                        const opacity = count === 0 ? 0.06 : 0.12 + intensity * 0.88;
                         return (
                           <div key={h}
-                            className="w-7 h-7 border border-[color:var(--terminal-border-soft)] flex items-center justify-center cursor-default"
+                            className="w-9 h-9 border border-[color:var(--terminal-border-soft)] flex items-center justify-center cursor-default"
                             style={{ backgroundColor: count === 0 ? undefined : `hsl(var(--primary) / ${opacity})` }}
-                            title={`${name} @ ${h}:00–${h + 1}:00 IST — ${count} alerts`}>
-                            <span className="text-[9px] font-mono font-bold bg-[#00000080] text-[#ffffff]" style={{ color: count === 0 ? "hsl(var(--muted-foreground)/0.3)" : `hsl(var(--primary))` }}>
-                              {count > 0 ? count : ""}
+                            title={`${name} @ ${h}:00–${h + 1}:00 IST — ${count} alert${count !== 1 ? "s" : ""}`}>
+                            <span className="text-[9px] font-mono font-bold tabular-nums" style={{ color: count === 0 ? "hsl(var(--muted-foreground)/0.25)" : `hsl(var(--primary))` }}>
+                              {count > 0 ? (count >= 1000 ? "k" : count) : ""}
                             </span>
                           </div>
                         );
                       })}
                     </div>
                   ))}
-                  <div className="flex items-center gap-1 mt-2 ml-28">
+                  <div className="flex items-center gap-1 mt-2 ml-32">
                     <span className="text-[9px] font-mono text-muted-foreground/50 mr-1">Low</span>
                     {[0.1, 0.3, 0.5, 0.7, 0.9].map((v) => (
-                      <div key={v} className="w-4 h-3" style={{ backgroundColor: `hsl(var(--primary) / ${v})` }} />
+                      <div key={v} className="w-5 h-3" style={{ backgroundColor: `hsl(var(--primary) / ${v})` }} />
                     ))}
                     <span className="text-[9px] font-mono text-muted-foreground/50 ml-1">High</span>
                   </div>

@@ -15,6 +15,8 @@ tags:
     description: Alert history
   - name: stats
     description: Dashboard statistics
+  - name: strategies
+    description: 15-Day Breakout Strategy
 
 paths:
   /healthz:
@@ -376,6 +378,116 @@ paths:
               schema:
                 $ref: "#/components/schemas/TelegramTestResult"
 
+  /strategies/run:
+    post:
+      operationId: runStrategy
+      tags: [strategies]
+      summary: Run 15-day breakout strategy for a scanner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StrategyRunInput"
+      responses:
+        "200":
+          description: Strategy run completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StrategyRunResult"
+        "400":
+          description: Bad request
+        "500":
+          description: Server error
+
+  /strategies/runs:
+    get:
+      operationId: getStrategyRuns
+      tags: [strategies]
+      summary: List all strategy runs
+      parameters:
+        - name: scannerId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StrategyRun"
+
+  /strategies/runs/{id}:
+    get:
+      operationId: getStrategyRunById
+      tags: [strategies]
+      summary: Get a strategy run with signals
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Run details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StrategyRunDetail"
+        "404":
+          description: Run not found
+
+  /strategies/signals:
+    get:
+      operationId: getStrategySignals
+      tags: [strategies]
+      summary: Get all strategy signals
+      parameters:
+        - name: scannerId
+          in: query
+          schema:
+            type: integer
+        - name: signalType
+          in: query
+          schema:
+            type: string
+            enum: [buy, hold, exit, no_signal]
+      responses:
+        "200":
+          description: List of signals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StrategySignal"
+
+  /strategies/active:
+    get:
+      operationId: getActiveStrategySignals
+      tags: [strategies]
+      summary: Get active BUY/HOLD signals for a scanner
+      parameters:
+        - name: scannerId
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Active signals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StrategySignal"
+
 components:
   schemas:
     HealthStatus:
@@ -624,4 +736,111 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ScanLogEntry"
+
+    StrategyRunInput:
+      type: object
+      required: [scannerId]
+      properties:
+        scannerId:
+          type: integer
+        config:
+          type: object
+          properties:
+            minMomentumPct:
+              type: number
+              default: 3
+            volumeMultiplier:
+              type: number
+              default: 1.2
+            lookbackDays:
+              type: integer
+              default: 15
+            longOnly:
+              type: boolean
+              default: true
+
+    StrategyRunResult:
+      type: object
+      required: [runId, signalsFound, signals]
+      properties:
+        runId:
+          type: integer
+        signalsFound:
+          type: integer
+        signals:
+          type: array
+          items:
+            type: object
+            required: [symbol, signalType, confidence]
+            properties:
+              symbol:
+                type: string
+              signalType:
+                type: string
+                enum: [buy, hold, exit, no_signal]
+              confidence:
+                type: number
+
+    StrategyRun:
+      type: object
+      required: [id, scannerId, runAt, status, signalsFound]
+      properties:
+        id:
+          type: integer
+        scannerId:
+          type: integer
+        runAt:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        signalsFound:
+          type: integer
+        durationMs:
+          type: ["integer", "null"]
+        error:
+          type: ["string", "null"]
+        config:
+          type: object
+
+    StrategyRunDetail:
+      type: object
+      required: [run, signals]
+      properties:
+        run:
+          $ref: "#/components/schemas/StrategyRun"
+        signals:
+          type: array
+          items:
+            $ref: "#/components/schemas/StrategySignal"
+
+    StrategySignal:
+      type: object
+      required: [id, runId, symbol, signalType, triggeredAt]
+      properties:
+        id:
+          type: integer
+        runId:
+          type: integer
+        symbol:
+          type: string
+        signalType:
+          type: string
+          enum: [buy, hold, exit, no_signal]
+        breakoutPrice:
+          type: ["number", "null"]
+        day15High:
+          type: ["number", "null"]
+        day15Low:
+          type: ["number", "null"]
+        volumeAvg15d:
+          type: ["number", "null"]
+        currentVolume:
+          type: ["number", "null"]
+        confidence:
+          type: ["number", "null"]
+        triggeredAt:
+          type: string
+        metadata:
+          type: object
 

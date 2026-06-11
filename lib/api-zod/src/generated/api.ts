@@ -307,3 +307,147 @@ export const TestTelegramConfigResponse = zod.object({
   success: zod.boolean(),
   message: zod.string(),
 });
+
+/**
+ * @summary Run 15-day breakout strategy for a scanner
+ */
+export const runStrategyBodyConfigMinMomentumPctDefault = 3;
+export const runStrategyBodyConfigVolumeMultiplierDefault = 1.2;
+export const runStrategyBodyConfigLookbackDaysDefault = 15;
+export const runStrategyBodyConfigLongOnlyDefault = true;
+
+export const RunStrategyBody = zod.object({
+  scannerId: zod.number(),
+  config: zod
+    .object({
+      minMomentumPct: zod
+        .number()
+        .default(runStrategyBodyConfigMinMomentumPctDefault),
+      volumeMultiplier: zod
+        .number()
+        .default(runStrategyBodyConfigVolumeMultiplierDefault),
+      lookbackDays: zod
+        .number()
+        .default(runStrategyBodyConfigLookbackDaysDefault),
+      longOnly: zod.boolean().default(runStrategyBodyConfigLongOnlyDefault),
+    })
+    .optional(),
+});
+
+export const RunStrategyResponse = zod.object({
+  runId: zod.number(),
+  signalsFound: zod.number(),
+  signals: zod.array(
+    zod.object({
+      symbol: zod.string(),
+      signalType: zod.enum(["buy", "hold", "exit", "no_signal"]),
+      confidence: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary List all strategy runs
+ */
+export const GetStrategyRunsQueryParams = zod.object({
+  scannerId: zod.coerce.number().optional(),
+});
+
+export const GetStrategyRunsResponseItem = zod.object({
+  id: zod.number(),
+  scannerId: zod.number(),
+  runAt: zod.string(),
+  status: zod.enum(["pending", "running", "completed", "failed"]),
+  signalsFound: zod.number(),
+  durationMs: zod.number().nullish(),
+  error: zod.string().nullish(),
+  config: zod.object({}).passthrough().optional(),
+});
+export const GetStrategyRunsResponse = zod.array(GetStrategyRunsResponseItem);
+
+/**
+ * @summary Get a strategy run with signals
+ */
+export const GetStrategyRunByIdParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetStrategyRunByIdResponse = zod.object({
+  run: zod.object({
+    id: zod.number(),
+    scannerId: zod.number(),
+    runAt: zod.string(),
+    status: zod.enum(["pending", "running", "completed", "failed"]),
+    signalsFound: zod.number(),
+    durationMs: zod.number().nullish(),
+    error: zod.string().nullish(),
+    config: zod.object({}).passthrough().optional(),
+  }),
+  signals: zod.array(
+    zod.object({
+      id: zod.number(),
+      runId: zod.number(),
+      symbol: zod.string(),
+      signalType: zod.enum(["buy", "hold", "exit", "no_signal"]),
+      breakoutPrice: zod.number().nullish(),
+      day15High: zod.number().nullish(),
+      day15Low: zod.number().nullish(),
+      volumeAvg15d: zod.number().nullish(),
+      currentVolume: zod.number().nullish(),
+      confidence: zod.number().nullish(),
+      triggeredAt: zod.string(),
+      metadata: zod.object({}).passthrough().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get all strategy signals
+ */
+export const GetStrategySignalsQueryParams = zod.object({
+  scannerId: zod.coerce.number().optional(),
+  signalType: zod.enum(["buy", "hold", "exit", "no_signal"]).optional(),
+});
+
+export const GetStrategySignalsResponseItem = zod.object({
+  id: zod.number(),
+  runId: zod.number(),
+  symbol: zod.string(),
+  signalType: zod.enum(["buy", "hold", "exit", "no_signal"]),
+  breakoutPrice: zod.number().nullish(),
+  day15High: zod.number().nullish(),
+  day15Low: zod.number().nullish(),
+  volumeAvg15d: zod.number().nullish(),
+  currentVolume: zod.number().nullish(),
+  confidence: zod.number().nullish(),
+  triggeredAt: zod.string(),
+  metadata: zod.object({}).passthrough().optional(),
+});
+export const GetStrategySignalsResponse = zod.array(
+  GetStrategySignalsResponseItem,
+);
+
+/**
+ * @summary Get active BUY/HOLD signals for a scanner
+ */
+export const GetActiveStrategySignalsQueryParams = zod.object({
+  scannerId: zod.coerce.number(),
+});
+
+export const GetActiveStrategySignalsResponseItem = zod.object({
+  id: zod.number(),
+  runId: zod.number(),
+  symbol: zod.string(),
+  signalType: zod.enum(["buy", "hold", "exit", "no_signal"]),
+  breakoutPrice: zod.number().nullish(),
+  day15High: zod.number().nullish(),
+  day15Low: zod.number().nullish(),
+  volumeAvg15d: zod.number().nullish(),
+  currentVolume: zod.number().nullish(),
+  confidence: zod.number().nullish(),
+  triggeredAt: zod.string(),
+  metadata: zod.object({}).passthrough().optional(),
+});
+export const GetActiveStrategySignalsResponse = zod.array(
+  GetActiveStrategySignalsResponseItem,
+);

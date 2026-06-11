@@ -108,6 +108,22 @@ export async function runScanForScanner(scannerId: number): Promise<{
     prices[s.nsecode] = s.close ?? null;
   }
 
+  // Auto-run 15-day breakout strategy after each scan
+  if (symbols.length > 0) {
+    try {
+      const { runStrategy } = await import("./strategy-runner");
+      runStrategy(scannerId, symbols, undefined, false, scanner.name)
+        .then((result) => {
+          logger.info({ scannerId, strategyRunId: result.runId, signalsFound: result.signalsFound }, "Auto strategy run complete");
+        })
+        .catch((err) => {
+          logger.error({ err, scannerId }, "Auto strategy run failed");
+        });
+    } catch (err) {
+      logger.error({ err, scannerId }, "Failed to import strategy runner");
+    }
+  }
+
   if (symbols.length === 0) {
     const durationMs = Date.now() - startTime;
     await db.insert(scanLogsTable).values({

@@ -146,6 +146,103 @@ export interface ScannerTimeline {
   recentScans: ScanLogEntry[];
 }
 
+export type StrategyRunInputConfig = {
+  minMomentumPct?: number;
+  volumeMultiplier?: number;
+  lookbackDays?: number;
+  longOnly?: boolean;
+};
+
+export interface StrategyRunInput {
+  scannerId: number;
+  config?: StrategyRunInputConfig;
+}
+
+export type StrategyRunResultSignalsItemSignalType =
+  (typeof StrategyRunResultSignalsItemSignalType)[keyof typeof StrategyRunResultSignalsItemSignalType];
+
+export const StrategyRunResultSignalsItemSignalType = {
+  buy: "buy",
+  hold: "hold",
+  exit: "exit",
+  no_signal: "no_signal",
+} as const;
+
+export type StrategyRunResultSignalsItem = {
+  symbol: string;
+  signalType: StrategyRunResultSignalsItemSignalType;
+  confidence: number;
+};
+
+export interface StrategyRunResult {
+  runId: number;
+  signalsFound: number;
+  signals: StrategyRunResultSignalsItem[];
+}
+
+export type StrategyRunStatus =
+  (typeof StrategyRunStatus)[keyof typeof StrategyRunStatus];
+
+export const StrategyRunStatus = {
+  pending: "pending",
+  running: "running",
+  completed: "completed",
+  failed: "failed",
+} as const;
+
+export type StrategyRunConfig = { [key: string]: unknown };
+
+export interface StrategyRun {
+  id: number;
+  scannerId: number;
+  runAt: string;
+  status: StrategyRunStatus;
+  signalsFound: number;
+  /** @nullable */
+  durationMs?: number | null;
+  /** @nullable */
+  error?: string | null;
+  config?: StrategyRunConfig;
+}
+
+export type StrategySignalSignalType =
+  (typeof StrategySignalSignalType)[keyof typeof StrategySignalSignalType];
+
+export const StrategySignalSignalType = {
+  buy: "buy",
+  hold: "hold",
+  exit: "exit",
+  no_signal: "no_signal",
+} as const;
+
+export type StrategySignalMetadata = { [key: string]: unknown };
+
+export interface StrategySignal {
+  id: number;
+  runId: number;
+  symbol: string;
+  signalType: StrategySignalSignalType;
+  /** @nullable */
+  breakoutPrice?: number | null;
+  /** @nullable */
+  day15High?: number | null;
+  /** @nullable */
+  day15Low?: number | null;
+  /** @nullable */
+  volumeAvg15d?: number | null;
+  /** @nullable */
+  currentVolume?: number | null;
+  /** @nullable */
+  confidence?: number | null;
+  triggeredAt: string;
+  metadata?: StrategySignalMetadata;
+}
+
+export interface StrategyRunDetail {
+  run: StrategyRun;
+  signals: StrategySignal[];
+}
+
 export type ListAlertsParams = {
   scannerId?: number;
   symbol?: string;
@@ -154,4 +251,27 @@ export type ListAlertsParams = {
 
 export type GetRecentAlertsParams = {
   limit?: number;
+};
+
+export type GetStrategyRunsParams = {
+  scannerId?: number;
+};
+
+export type GetStrategySignalsParams = {
+  scannerId?: number;
+  signalType?: GetStrategySignalsSignalType;
+};
+
+export type GetStrategySignalsSignalType =
+  (typeof GetStrategySignalsSignalType)[keyof typeof GetStrategySignalsSignalType];
+
+export const GetStrategySignalsSignalType = {
+  buy: "buy",
+  hold: "hold",
+  exit: "exit",
+  no_signal: "no_signal",
+} as const;
+
+export type GetActiveStrategySignalsParams = {
+  scannerId: number;
 };

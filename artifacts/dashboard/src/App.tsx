@@ -8,6 +8,7 @@ import Dashboard from "@/pages/dashboard";
 import Scanners from "@/pages/scanners/index";
 import NewScanner from "@/pages/scanners/new";
 import ScannerDetail from "@/pages/scanners/[id]";
+import Strategies from "@/pages/strategies";
 import Alerts from "@/pages/alerts";
 import ConfigPage from "@/pages/config";
 import { ThemeProvider } from "@/lib/theme-context";
@@ -22,6 +23,7 @@ function Router() {
         <Route path="/scanners" component={Scanners} />
         <Route path="/scanners/new" component={NewScanner} />
         <Route path="/scanners/:id" component={ScannerDetail} />
+        <Route path="/strategies" component={Strategies} />
         <Route path="/alerts" component={Alerts} />
         <Route path="/config" component={ConfigPage} />
         <Route component={NotFound} />

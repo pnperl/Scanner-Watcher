@@ -19,7 +19,10 @@ import type {
 import type {
   Alert,
   CoOccurrenceEntry,
+  GetActiveStrategySignalsParams,
   GetRecentAlertsParams,
+  GetStrategyRunsParams,
+  GetStrategySignalsParams,
   HealthStatus,
   HourlyActivity,
   ListAlertsParams,
@@ -33,6 +36,11 @@ import type {
   ScannerToggle,
   ScannerUpdate,
   StatsSummary,
+  StrategyRun,
+  StrategyRunDetail,
+  StrategyRunInput,
+  StrategyRunResult,
+  StrategySignal,
   TelegramConfig,
   TelegramConfigInput,
   TelegramTestResult,
@@ -1758,3 +1766,467 @@ export const useTestTelegramConfig = <
 > => {
   return useMutation(getTestTelegramConfigMutationOptions(options));
 };
+
+/**
+ * @summary Run 15-day breakout strategy for a scanner
+ */
+export const getRunStrategyUrl = () => {
+  return `/api/strategies/run`;
+};
+
+export const runStrategy = async (
+  strategyRunInput: StrategyRunInput,
+  options?: RequestInit,
+): Promise<StrategyRunResult> => {
+  return customFetch<StrategyRunResult>(getRunStrategyUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(strategyRunInput),
+  });
+};
+
+export const getRunStrategyMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runStrategy>>,
+    TError,
+    { data: BodyType<StrategyRunInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof runStrategy>>,
+  TError,
+  { data: BodyType<StrategyRunInput> },
+  TContext
+> => {
+  const mutationKey = ["runStrategy"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof runStrategy>>,
+    { data: BodyType<StrategyRunInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return runStrategy(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RunStrategyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof runStrategy>>
+>;
+export type RunStrategyMutationBody = BodyType<StrategyRunInput>;
+export type RunStrategyMutationError = ErrorType<void>;
+
+/**
+ * @summary Run 15-day breakout strategy for a scanner
+ */
+export const useRunStrategy = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runStrategy>>,
+    TError,
+    { data: BodyType<StrategyRunInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof runStrategy>>,
+  TError,
+  { data: BodyType<StrategyRunInput> },
+  TContext
+> => {
+  return useMutation(getRunStrategyMutationOptions(options));
+};
+
+/**
+ * @summary List all strategy runs
+ */
+export const getGetStrategyRunsUrl = (params?: GetStrategyRunsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/strategies/runs?${stringifiedParams}`
+    : `/api/strategies/runs`;
+};
+
+export const getStrategyRuns = async (
+  params?: GetStrategyRunsParams,
+  options?: RequestInit,
+): Promise<StrategyRun[]> => {
+  return customFetch<StrategyRun[]>(getGetStrategyRunsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetStrategyRunsQueryKey = (params?: GetStrategyRunsParams) => {
+  return [`/api/strategies/runs`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetStrategyRunsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStrategyRuns>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetStrategyRunsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStrategyRuns>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetStrategyRunsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getStrategyRuns>>> = ({
+    signal,
+  }) => getStrategyRuns(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStrategyRuns>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetStrategyRunsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStrategyRuns>>
+>;
+export type GetStrategyRunsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all strategy runs
+ */
+
+export function useGetStrategyRuns<
+  TData = Awaited<ReturnType<typeof getStrategyRuns>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetStrategyRunsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStrategyRuns>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetStrategyRunsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get a strategy run with signals
+ */
+export const getGetStrategyRunByIdUrl = (id: number) => {
+  return `/api/strategies/runs/${id}`;
+};
+
+export const getStrategyRunById = async (
+  id: number,
+  options?: RequestInit,
+): Promise<StrategyRunDetail> => {
+  return customFetch<StrategyRunDetail>(getGetStrategyRunByIdUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetStrategyRunByIdQueryKey = (id: number) => {
+  return [`/api/strategies/runs/${id}`] as const;
+};
+
+export const getGetStrategyRunByIdQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStrategyRunById>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStrategyRunById>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetStrategyRunByIdQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getStrategyRunById>>
+  > = ({ signal }) => getStrategyRunById(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStrategyRunById>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetStrategyRunByIdQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStrategyRunById>>
+>;
+export type GetStrategyRunByIdQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a strategy run with signals
+ */
+
+export function useGetStrategyRunById<
+  TData = Awaited<ReturnType<typeof getStrategyRunById>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStrategyRunById>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetStrategyRunByIdQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get all strategy signals
+ */
+export const getGetStrategySignalsUrl = (params?: GetStrategySignalsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/strategies/signals?${stringifiedParams}`
+    : `/api/strategies/signals`;
+};
+
+export const getStrategySignals = async (
+  params?: GetStrategySignalsParams,
+  options?: RequestInit,
+): Promise<StrategySignal[]> => {
+  return customFetch<StrategySignal[]>(getGetStrategySignalsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetStrategySignalsQueryKey = (
+  params?: GetStrategySignalsParams,
+) => {
+  return [`/api/strategies/signals`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetStrategySignalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStrategySignals>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetStrategySignalsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStrategySignals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetStrategySignalsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getStrategySignals>>
+  > = ({ signal }) => getStrategySignals(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStrategySignals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetStrategySignalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStrategySignals>>
+>;
+export type GetStrategySignalsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get all strategy signals
+ */
+
+export function useGetStrategySignals<
+  TData = Awaited<ReturnType<typeof getStrategySignals>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetStrategySignalsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStrategySignals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetStrategySignalsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get active BUY/HOLD signals for a scanner
+ */
+export const getGetActiveStrategySignalsUrl = (
+  params: GetActiveStrategySignalsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/strategies/active?${stringifiedParams}`
+    : `/api/strategies/active`;
+};
+
+export const getActiveStrategySignals = async (
+  params: GetActiveStrategySignalsParams,
+  options?: RequestInit,
+): Promise<StrategySignal[]> => {
+  return customFetch<StrategySignal[]>(getGetActiveStrategySignalsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetActiveStrategySignalsQueryKey = (
+  params?: GetActiveStrategySignalsParams,
+) => {
+  return [`/api/strategies/active`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetActiveStrategySignalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getActiveStrategySignals>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetActiveStrategySignalsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getActiveStrategySignals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetActiveStrategySignalsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getActiveStrategySignals>>
+  > = ({ signal }) =>
+    getActiveStrategySignals(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getActiveStrategySignals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetActiveStrategySignalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getActiveStrategySignals>>
+>;
+export type GetActiveStrategySignalsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get active BUY/HOLD signals for a scanner
+ */
+
+export function useGetActiveStrategySignals<
+  TData = Awaited<ReturnType<typeof getActiveStrategySignals>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetActiveStrategySignalsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getActiveStrategySignals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetActiveStrategySignalsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
