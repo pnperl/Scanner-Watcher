@@ -1,8 +1,8 @@
-import { pgTable, serial, timestamp, integer, text, doublePrecision, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, timestamp, integer, text, doublePrecision, jsonb } from "drizzle-orm/pg-core";
 import { strategyRunsTable } from "./strategy-runs";
 
 export const strategySignalsTable = pgTable("strategy_signals", {
-  id: serial("id").primaryKey(),
+  id: integer("id").generatedAlwaysAsIdentity().primaryKey(),
   runId: integer("run_id").notNull().references(() => strategyRunsTable.id, { onDelete: "cascade" }),
   symbol: text("symbol").notNull(),
   signalType: text("signal_type", { enum: ["buy", "hold", "exit", "no_signal"] }).notNull().default("no_signal"),

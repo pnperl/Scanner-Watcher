@@ -1,8 +1,8 @@
-import { pgTable, serial, timestamp, integer, text, doublePrecision, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, timestamp, integer, text, doublePrecision, jsonb } from "drizzle-orm/pg-core";
 import { scannersTable } from "./scanners";
 
 export const strategyRunsTable = pgTable("strategy_runs", {
-  id: serial("id").primaryKey(),
+  id: integer("id").generatedAlwaysAsIdentity().primaryKey(),
   scannerId: integer("scanner_id").notNull().references(() => scannersTable.id, { onDelete: "cascade" }),
   runAt: timestamp("run_at", { withTimezone: true }).notNull().defaultNow(),
   status: text("status", { enum: ["pending", "running", "completed", "failed"] }).notNull().default("pending"),

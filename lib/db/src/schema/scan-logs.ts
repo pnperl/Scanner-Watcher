@@ -1,8 +1,8 @@
-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer } from "drizzle-orm/pg-core";
 import { scannersTable } from "./scanners";
 
 export const scanLogsTable = pgTable("scan_logs", {
-  id: serial("id").primaryKey(),
+  id: integer("id").generatedAlwaysAsIdentity().primaryKey(),
   scannerId: integer("scanner_id").notNull().references(() => scannersTable.id, { onDelete: "cascade" }),
   scannedAt: timestamp("scanned_at", { withTimezone: true }).notNull().defaultNow(),
   stocksFound: integer("stocks_found").notNull().default(0),
