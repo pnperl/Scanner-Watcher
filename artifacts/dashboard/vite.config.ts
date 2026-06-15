@@ -2,32 +2,28 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 // PORT is only needed for the dev server, not the production build
-const rawPort = process.env.PORT;
-const port = rawPort ? Number(rawPort) : 5173;
+const port = process.env.PORT ? Number(process.env.PORT) : 5173;
 
-// BASE_PATH defaults to "/" for Railway / standalone builds
+// BASE_PATH defaults to "/" — override for sub-path deployments (e.g. Replit)
 const basePath = process.env.BASE_PATH ?? "/";
+
+// Replit-specific dev plugins — only loaded inside Replit
+const isReplit = process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined;
 
 export default defineConfig({
   base: basePath,
   plugins: [
     react(),
     tailwindcss(),
-    runtimeErrorOverlay(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
+    ...(isReplit
       ? [
+          await import("@replit/vite-plugin-runtime-error-modal").then((m) => m.default()),
           await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer({
-              root: path.resolve(import.meta.dirname, ".."),
-            }),
+            m.cartographer({ root: path.resolve(import.meta.dirname, "..") }),
           ),
-          await import("@replit/vite-plugin-dev-banner").then((m) =>
-            m.devBanner(),
-          ),
+          await import("@replit/vite-plugin-dev-banner").then((m) => m.devBanner()),
         ]
       : []),
   ],
@@ -48,9 +44,7 @@ export default defineConfig({
     strictPort: true,
     host: "0.0.0.0",
     allowedHosts: true,
-    fs: {
-      strict: true,
-    },
+    fs: { strict: true },
   },
   preview: {
     port,

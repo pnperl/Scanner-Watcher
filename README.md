@@ -148,13 +148,17 @@ pnpm --filter @workspace/api-spec run codegen  # Regenerate API hooks from OpenA
 
 ---
 
-## Deploy to Railway (one-click)
+## Deployment
 
-Railway is the recommended deployment target — the project is fully pre-configured for it.
+Two options — choose what fits your setup.
 
-### Steps
+---
 
-**1. Push your code to GitHub**
+### Option A — Railway (full-stack, recommended)
+
+One service handles both the API and the React frontend. `nixpacks.toml` and `railway.json` are already configured.
+
+**1. Push to GitHub**
 ```bash
 git init && git add . && git commit -m "Initial commit"
 git remote add origin https://github.com/YOUR_USERNAME/chartink-monitor.git
@@ -165,69 +169,64 @@ git push -u origin main
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new)
 
-- Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo**
-- Select your repository → Railway auto-detects `nixpacks.toml` and configures the build
+Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo** → select your repo.
 
 **3. Add a PostgreSQL database**
 
 Inside your Railway project → **+ New** → **Database** → **PostgreSQL**
 
-Railway automatically injects `DATABASE_URL` into your service — no manual copy-paste needed.
+Railway injects `DATABASE_URL` automatically — no copy-paste needed.
 
 **4. Set environment variables**
 
-In your Railway service → **Variables** tab → add:
+In your Railway service → **Variables** tab:
 
 | Variable | Value |
 |----------|-------|
-| `TELEGRAM_BOT_TOKEN` | Your bot token from @BotFather |
-| `TELEGRAM_CHAT_ID` | Your group/channel ID |
+| `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather |
+| `TELEGRAM_CHAT_ID` | Your group/channel chat ID |
 | `SESSION_SECRET` | Any random 32-char string |
 
-> `DATABASE_URL` and `PORT` are injected by Railway automatically — do not set them manually.
+> `DATABASE_URL` and `PORT` are injected by Railway. Do not set them manually.
 
-**5. Deploy**
+**5. Done** — Railway builds and deploys automatically. Live at `https://YOUR-APP.up.railway.app` in ~2 minutes.
 
-Railway triggers a build automatically after you push. The build:
-- Compiles the API server
-- Builds the React dashboard
-- Pushes the full DB schema to PostgreSQL
-
-Your app will be live at `https://YOUR-APP.up.railway.app` within ~2 minutes.
+In production, one Express process serves everything:
+```
+https://your-app.up.railway.app/        → React dashboard
+https://your-app.up.railway.app/api/    → REST API
+```
 
 ---
 
-### How the production build works
+### Option B — Vercel (frontend) + Railway (API)
 
-In production, Express serves both the API **and** the React dashboard from a single process:
+Deploy the dashboard to Vercel and the API to Railway separately.
 
-```
-https://your-app.up.railway.app/          → React dashboard (static)
-https://your-app.up.railway.app/api/...   → Express API
-```
+**API on Railway** — same steps as Option A above, skip nothing.
 
-No separate static host or CDN needed.
+**Dashboard on Vercel**:
 
----
+1. Go to [vercel.com](https://vercel.com) → **New Project** → import your GitHub repo
+2. Vercel auto-detects `vercel.json` — no build config changes needed
+3. In **Environment Variables** add:
 
-### Re-deploying after changes
+| Variable | Value |
+|----------|-------|
+| `VITE_API_URL` | Your Railway API URL, e.g. `https://your-api.up.railway.app` |
 
-```bash
-git add . && git commit -m "my change" && git push
-```
-
-Railway auto-redeploys on every push to your connected branch.
+4. Deploy. The dashboard calls the Railway API directly.
 
 ---
 
-## Other platforms (Render, Fly.io)
+### Option C — Render / Fly.io / any Linux host
 
 | Setting | Value |
 |---------|-------|
-| Build command | `npm install -g pnpm@10 && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-spec run codegen && pnpm run typecheck:libs && pnpm --filter @workspace/api-server run build && BASE_PATH=/ NODE_ENV=production pnpm --filter @workspace/dashboard run build && pnpm --filter @workspace/db run push --force` |
-| Start command | `node --enable-source-maps artifacts/api-server/dist/index.mjs` |
-| Node version | 24 |
-| Environment | `NODE_ENV=production` + all vars from the table above |
+| **Build** | `npm i -g pnpm@10 && pnpm i --frozen-lockfile && pnpm --filter @workspace/api-spec run codegen && pnpm run typecheck:libs && pnpm --filter @workspace/api-server run build && BASE_PATH=/ NODE_ENV=production pnpm --filter @workspace/dashboard run build && pnpm --filter @workspace/db run push --force` |
+| **Start** | `node --enable-source-maps artifacts/api-server/dist/index.mjs` |
+| **Node** | 24 |
+| **Env vars** | Same as Option A |
 
 ---
 

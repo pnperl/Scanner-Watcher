@@ -44,9 +44,18 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
-# Replit
+# Replit — platform internals (not needed by other platforms)
 .cache/
 .local/
+.agents/
+replit.md
+*.replit-artifact/
+
+# SQL backups
+*.sql
+
+# Vercel
+.vercel
 
 # Environment secrets — never commit
 .env
