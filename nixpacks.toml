@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["nodejs_22"]
+nixPkgs = ["nodejs_24"]
 
 [phases.install]
 cmds = ["npm install -g pnpm@10 && pnpm install --frozen-lockfile"]
@@ -7,8 +7,10 @@ cmds = ["npm install -g pnpm@10 && pnpm install --frozen-lockfile"]
 [phases.build]
 cmds = [
   "pnpm --filter @workspace/api-spec run codegen",
+  "pnpm run typecheck:libs",
   "pnpm --filter @workspace/api-server run build",
-  "pnpm --filter @workspace/dashboard run build"
+  "BASE_PATH=/ NODE_ENV=production pnpm --filter @workspace/dashboard run build",
+  "pnpm --filter @workspace/db run push --force || echo '[warn] DB schema push failed - ensure DATABASE_URL is set'"
 ]
 
 [start]

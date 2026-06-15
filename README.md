@@ -148,15 +148,86 @@ pnpm --filter @workspace/api-spec run codegen  # Regenerate API hooks from OpenA
 
 ---
 
-## Deployment
+## Deploy to Railway (one-click)
 
-The app is configured for [Replit](https://replit.com) deployment out of the box. The production build automatically pushes the DB schema on every deploy.
+Railway is the recommended deployment target — the project is fully pre-configured for it.
 
-For other platforms (Railway, Render, Fly.io):
-1. Set the environment variables
-2. Build command: `pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/db run push --force`
-3. Start command: `node --enable-source-maps artifacts/api-server/dist/index.mjs`
-4. Serve the dashboard `artifacts/dashboard/dist/` as static files (or use a separate static host)
+### Steps
+
+**1. Push your code to GitHub**
+```bash
+git init && git add . && git commit -m "Initial commit"
+git remote add origin https://github.com/YOUR_USERNAME/chartink-monitor.git
+git push -u origin main
+```
+
+**2. Create a Railway project**
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new)
+
+- Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo**
+- Select your repository → Railway auto-detects `nixpacks.toml` and configures the build
+
+**3. Add a PostgreSQL database**
+
+Inside your Railway project → **+ New** → **Database** → **PostgreSQL**
+
+Railway automatically injects `DATABASE_URL` into your service — no manual copy-paste needed.
+
+**4. Set environment variables**
+
+In your Railway service → **Variables** tab → add:
+
+| Variable | Value |
+|----------|-------|
+| `TELEGRAM_BOT_TOKEN` | Your bot token from @BotFather |
+| `TELEGRAM_CHAT_ID` | Your group/channel ID |
+| `SESSION_SECRET` | Any random 32-char string |
+
+> `DATABASE_URL` and `PORT` are injected by Railway automatically — do not set them manually.
+
+**5. Deploy**
+
+Railway triggers a build automatically after you push. The build:
+- Compiles the API server
+- Builds the React dashboard
+- Pushes the full DB schema to PostgreSQL
+
+Your app will be live at `https://YOUR-APP.up.railway.app` within ~2 minutes.
+
+---
+
+### How the production build works
+
+In production, Express serves both the API **and** the React dashboard from a single process:
+
+```
+https://your-app.up.railway.app/          → React dashboard (static)
+https://your-app.up.railway.app/api/...   → Express API
+```
+
+No separate static host or CDN needed.
+
+---
+
+### Re-deploying after changes
+
+```bash
+git add . && git commit -m "my change" && git push
+```
+
+Railway auto-redeploys on every push to your connected branch.
+
+---
+
+## Other platforms (Render, Fly.io)
+
+| Setting | Value |
+|---------|-------|
+| Build command | `npm install -g pnpm@10 && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-spec run codegen && pnpm run typecheck:libs && pnpm --filter @workspace/api-server run build && BASE_PATH=/ NODE_ENV=production pnpm --filter @workspace/dashboard run build && pnpm --filter @workspace/db run push --force` |
+| Start command | `node --enable-source-maps artifacts/api-server/dist/index.mjs` |
+| Node version | 24 |
+| Environment | `NODE_ENV=production` + all vars from the table above |
 
 ---
 

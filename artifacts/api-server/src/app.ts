@@ -1,6 +1,8 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import path from "path";
+import { fileURLToPath } from "url";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -30,5 +32,20 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+// In production, serve the built React dashboard as static files.
+// API routes are registered above and take priority.
+if (process.env.NODE_ENV === "production") {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  // Relative to dist/index.mjs → go up to repo root → dashboard dist
+  const distPath = path.resolve(__dirname, "..", "..", "..", "artifacts", "dashboard", "dist", "public");
+
+  app.use(express.static(distPath));
+
+  // SPA fallback — return index.html for any unmatched route so React Router works
+  app.use((_req, res) => {
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+}
 
 export default app;
